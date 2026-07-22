@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema PCM — Gráfica Cometa</title>
+<style>
+:root{
+--vermelho:#CC1B1B; --vermelho-escuro:#A81616; --vermelho-suave:rgba(204,27,27,.10); --vermelho-suave-2:rgba(204,27,27,.18);
+--fundo:#F7F8FC; --branco:#FFFFFF; --texto:#1A202C; --texto-sec:#718096; --borda:#E7EAF3;
+--sombra-sm:0 1px 3px rgba(26,32,44,.06); --sombra-md:0 8px 24px rgba(26,32,44,.08);
+--radius:12px; --radius-sm:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter','Segoe UI',Roboto,Arial,sans-serif;background:var(--fundo);color:var(--texto)}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+a{color:inherit;text-decoration:none}
+
+.header{position:fixed;top:0;left:0;right:0;height:64px;background:var(--branco);border-bottom:1px solid var(--borda);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:100;box-shadow:var(--sombra-sm)}
+.header-esq{display:flex;align-items:center;gap:12px}
+.logo-mini{width:38px;height:38px;border-radius:10px;background:var(--vermelho);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.marca-texto h1{font-size:.92rem;font-weight:700;line-height:1.2}
+.marca-texto p{font-size:.7rem;color:var(--texto-sec)}
+.header-dir{display:flex;align-items:center;gap:8px}
+.usuario-area{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;border:1px solid var(--borda)}
+.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--vermelho),var(--vermelho-escuro));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem;flex-shrink:0}
+.usuario-info .nome{font-size:.8rem;font-weight:600;line-height:1.2}
+.usuario-info .funcao{font-size:.68rem;color:var(--texto-sec)}
+.btn-sair{padding:8px 14px;font-size:.78rem;font-weight:600;color:var(--vermelho);background:var(--vermelho-suave);border:none;border-radius:8px;display:inline-block}
+.btn-sair:hover{background:var(--vermelho-suave-2)}
+.btn-trocar{padding:8px 14px;font-size:.78rem;font-weight:600;color:var(--texto);background:var(--fundo);border:1px solid var(--borda);border-radius:8px;display:inline-block}
+.btn-trocar:hover{background:var(--vermelho-suave);border-color:transparent;color:var(--vermelho)}
+
+.pcm-tabs{margin-top:64px;background:#fff;border-bottom:1px solid var(--borda);display:flex;padding-left:20px}
+.pcm-tab{padding:13px 18px;border:none;background:none;font-weight:500;color:var(--texto-sec);border-bottom:3px solid transparent;font-size:.8rem}
+.pcm-tab.ativo{font-weight:700;color:var(--vermelho);border-bottom-color:var(--vermelho)}
+
+.grid-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.card-kpi{background:var(--branco);border-radius:var(--radius);padding:14px;box-shadow:var(--sombra-sm);border:1px solid var(--borda)}
+.card-kpi-valor{font-size:1.5rem;font-weight:800}
+.card-kpi-label{font-size:.72rem;color:var(--texto-sec);margin-top:2px;font-weight:600}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(26,32,44,.5);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px}
+.modal{background:var(--branco);border-radius:var(--radius);width:100%;max-width:520px;box-shadow:var(--sombra-md);max-height:90vh;overflow-y:auto}
+.modal-rodape{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--borda);flex-wrap:wrap}
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1e3a5f;color:#fff;padding:12px 26px;border-radius:12px;font-weight:700;font-size:.82rem;box-shadow:0 4px 20px rgba(0,0,0,.25);z-index:2000;white-space:nowrap}
+
+@media (max-width:900px){ .usuario-info{display:none} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const HOJE = new Date(); HOJE.setHours(0,0,0,0);
+function addDias(data, d) { const r = new Date(data); r.setDate(r.getDate() + d); return r; }
+function fmtDate(d) { if(!(d instanceof Date)) d = new Date(d); return d.toLocaleDateString("pt-BR"); }
+function parseDataLocal(str) {
+if (!str) return null;
+const [y,m,d] = str.split("-").map(Number);
+return new Date(y, m-1, d);
+}
+function diffDias(d) { return Math.round((d - HOJE) / 86400000); }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function setPath(obj, path, val){ const parts = path.split("."); let o = obj; for(let i=0;i<parts.length-1;i++){ o = o[parts[i]]; } o[parts[parts.length-1]] = val; }
+
+function lerParamsUsuario() {
+const params = new URLSearchParams(window.location.search);
+return {
+nome: params.get("nome") || "Mauro Ledur",
+perfil: params.get("perfil") || "Operador",
+};
+}
+
+const MAQUINAS = ["ABG","CD","Coladeira 10","Coladeira 20","Coladeira Eureka","Corte Vinco - 03","Corte Vinco Automática","CVA Hot e relevo","Desfolhadeira","Dobradeira","Embalagem 1","Embalagem 2","Gallus","Guilhotina Recorte (INA1)","Guilhotina Recorte (INA3)","Ibirama - Recorte (Baldo)","MA 330","Mark Andy 330","New Foil","Nilpeter 250","Nilpeter 420","Rotoflex 01","Rotoflex 02","Rotoflex 03"];
+const RESPONSAVEIS = ["Mauro Ledur","Soli Rodrigues","Alexandre Pereira","Anderson Lima","Andre Martins","Carlos Eduardo","Daniel Ribeiro","Eduardo Barros","Felipe Araujo","Fernando Correia","Gabriel Moreira","Guilherme Borges","Henrique Ramos","Leonardo Batista","Lucas Andrade","Marcelo Queiroz","Marcos Vinicius","Mateus Coelho","Rafael Sousa","Rodrigo Leal","Thiago Carvalho"];
+
+const EST = {
+PP: {label:"PP — Preventiva", color:"#2563eb", bg:"#eff6ff"},
+PD: {label:"PD — Preditiva", color:"#7c3aed", bg:"#f5f3ff"},
+PIR:{label:"PIR — Inspeção", color:"#b45309", bg:"#fffbeb"},
+PL: {label:"PL — Lubrificação", color:"#0d9488", bg:"#f0fdfa"},
+MA: {label:"MA — Manutenção Autônoma", color:"#CC1B1B", bg:"rgba(204,27,27,.08)"},
+};
+const CC = {
+A:{bg:"rgba(204,27,27,.08)",text:"#A81616",border:"#f3a5a5"},
+B:{bg:"#fef9c3",text:"#854d0e",border:"#fde047"},
+C:{bg:"#f0fdf4",text:"#166534",border:"#bbf7d0"},
+};
+const SC = {"Aberta":"#2563eb","Em Andamento":"#b45309","Concluida":"#0d9488","Cancelada":"#a1a1aa"};
+const PERFIS_PODEM_EXCLUIR = ["Administrador","Gestor de Manutenção"];
+
+const SUGESTAO_ESTRATEGIA = {
+A: ["PP","PD"],
+B: ["PIR","PL","MA"],
+C: ["PIR","PL","MA"],
+};
+const MOTIVO_SUGESTAO = {
+A: "Equipamento de criticidade alta: impacta fortemente a produção, a qualidade e/ou a segurança. Recomenda-se manutenção Preventiva (PP), com intervenções programadas, aliada à Preditiva (PD), para monitorar condições e antecipar falhas antes que ocorram.",
+B: "Equipamento de criticidade média: recomenda-se Inspeção de Rotina (PIR) para detectar desvios precocemente, Lubrificação (PL) periódica para preservar componentes e Manutenção Autônoma (MA) para envolver o operador nos cuidados básicos diários.",
+C: "Equipamento de criticidade baixa: ainda assim, recomenda-se Inspeção de Rotina (PIR), Lubrificação (PL) periódica e Manutenção Autônoma (MA) pelo operador, garantindo cuidados básicos sem exigir estratégias mais intensivas.",
+};
+
+const SETORES = ["TI", "Manutenção", "Offset", "Acabamento", "Qualidade"];
+
+const PRIORIDADES_SC = {
+"Imediato": { desc:"Realizar neste exato momento.", color:"#CC1B1B", bg:"rgba(204,27,27,.08)" },
+"Urgente": { desc:"Realizar assim que possível.", color:"#b45309", bg:"#fffbeb" },
+"A programar": { desc:"Realizar conforme disponibilidade da manutenção.", color:"#2563eb", bg:"#eff6ff" },
+};
+
+const MATRIZ = [
+{id:1,peso:10,label:"Impacto na produção / qualidade do produto", opcoes:[{label:"Alto",val:10},{label:"Médio",val:5},{label:"Baixo",val:0}]},
+{id:2,peso:10,label:"Impactos nos índices de produtividade", opcoes:[{label:"Alto",val:10},{label:"Médio",val:5},{label:"Baixo",val:0}]},
+{id:3,peso:3, label:"Funcionamento Contínuo", opcoes:[{label:"Sim",val:10},{label:"Não",val:0}]},
+{id:4,peso:2, label:"Frequência de Falhas", opcoes:[{label:"Diversas falhas semanais",val:10},{label:"Diversas falhas mensais",val:5},{label:"Diversas falhas anuais",val:0}]},
+{id:5,peso:1, label:"Existe equipamento reserva", opcoes:[{label:"Sim",val:0},{label:"Não",val:10}]},
+{id:6,peso:1, label:"Tempo Médio de Reparo ou Substituição", opcoes:[{label:"0–3 min",val:1},{label:"3–15 min",val:4},{label:"15–30 min",val:7},{label:"> 30 min",val:10}]},
+{id:7,peso:1, label:"Risco de Segurança e/ou Meio Ambiente", opcoes:[{label:"Sim",val:10},{label:"Não",val:0}]},
+];
+function calcCri(resp) {
+return MATRIZ.reduce((a,m)=>{
+const manual = resp[`${m.id}_manual`];
+const val = (manual!==undefined && manual!=="") ? Number(manual) : resp[m.id];
+return a + (val!==undefined ? val*m.peso : 0);
+}, 0);
+}
+function matrizRespondida(matriz) {
+return MATRIZ.every(m=>{
+const manual = matriz[`${m.id}_manual`];
+const minVal = Math.min(...m.opcoes.map(o=>o.val));
+const maxVal = Math.max(...m.opcoes.map(o=>o.val));
+if (manual!==undefined && manual!=="") {
+const n = Number(manual);
+return !isNaN(n) && n>=minVal && n<=maxVal;
+}
+return matriz[m.id] !== undefined;
+});
+}
+function calcClasse(c) { return c>200?"A":c>=50?"B":"C"; }
+
+function equipamentosIniciais() {
+return [
+{desc:"Entrada do papel",tag:"CD001.1",cod:"",criTotal:247,criClasse:"A",prazoD:90,estrategias:["PP","PIR"],maquina:"CD",ultimaManutencao:"2026-03-05",naoSeiData:false},
+{desc:"Margeador",tag:"CD001.1.1",cod:"",criTotal:247,criClasse:"A",prazoD:30,estrategias:["PP","PIR"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
+{desc:"Apalpador",tag:"CD001.1.2",cod:"C5.028.075F",criTotal:237,criClasse:"A",prazoD:60,estrategias:["PP"],maquina:"CD",ultimaManutencao:"2026-04-04",naoSeiData:false},
+{desc:"Arco guia",tag:"CD001.1.1.1",cod:"L2.020.207",criTotal:114,criClasse:"B",prazoD:90,estrategias:["PP","MA"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
+{desc:"Esquadro",tag:"CD001.1.2b",cod:"",criTotal:167,criClasse:"B",prazoD:30,estrategias:["PP","MA"],maquina:"CD",ultimaManutencao:"2026-05-04",naoSeiData:false},
+{desc:"Correia dentada de tracao",tag:"CD001.1.2.1",cod:"",criTotal:247,criClasse:"A",prazoD:90,estrategias:["PP","PD"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
+{desc:"Motor Tinteiro",tag:"CD001.2.1",cod:"L2.105.1051",criTotal:110,criClasse:"B",prazoD:90,estrategias:["PP","PD"],maquina:"CD",ultimaManutencao:"2026-03-05",naoSeiData:false},
+{desc:"Rolo tinta chapa 1",tag:"CD001.2.2",cod:"902902",criTotal:167,criClasse:"B",prazoD:120,estrategias:["PP","PL"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
+{desc:"Motor principal",tag:"CD001.3.1.4",cod:"M4.101.2003",criTotal:150,criClasse:"B",prazoD:150,estrategias:["PP","PD","PL"],maquina:"CD",ultimaManutencao:"2026-01-04",naoSeiData:false},
+{desc:"Gaita entrada (Fole)",tag:"CD001.1.2.2",cod:"L2.072.324",criTotal:11,criClasse:"C",prazoD:90,estrategias:["PIR"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
+{desc:"Rolo de transferencia",tag:"CD001.2.6",cod:"902910",criTotal:167,criClasse:"B",prazoD:60,estrategias:["PP","PIR"],maquina:"CD",ultimaManutencao:"2026-04-04",naoSeiData:false},
+].map(e=>{
+const ref = e.naoSeiData ? HOJE : new Date(e.ultimaManutencao);
+const dataIntervencao = addDias(ref, e.prazoD);
+return {...e, setor:"Offset", dataRef:ref, dataIntervencao, diasRestantes:diffDias(dataIntervencao), ativo:true};
+});
+}
+
+
+const App = {
+osCnt: 1,
+scCnt: 1,
+state: {
+usuarioLogado: lerParamsUsuario(),
+toastMsg: null,
+equipamentos: equipamentosIniciais(),
+os: [],
+logAuditoria: [],
+pcmAba: "dashboard",
+pcmBusca: "", pcmFiltroStatus: "Todos",
+eqFormAberto: null,
+eqFormDados: null,
+eqFormErros: {},
+detalheOS: null, detalheForm: {status:"",dataPrevConc:""},
+aprovFlow: null, erroAprov: "",
+relatorio: null,
+excluirEq: null,
+solicitacoesCorretivas: [],
+scForm: { setor:"", maquina:"", codigoPeca:"", dataOcorrencia:"", ocorrencia:"", impacto:"", prioridade:"" },
+scErros: {},
+},
+
+set(patch) { Object.assign(this.state, patch); this.render(); },
+showToast(msg) { this.set({toastMsg: msg}); setTimeout(()=>{ this.state.toastMsg=null; this.render(); }, 3000); },
+
+captureFocus() {
+const el = document.activeElement;
+if (!el || !el.id) return null;
+return { id: el.id, start: el.selectionStart, end: el.selectionEnd };
+},
+restoreFocus(info) {
+if (!info) return;
+const el = document.getElementById(info.id);
+if (!el) return;
+el.focus();
+if (typeof info.start === "number" && el.setSelectionRange) { try { el.setSelectionRange(info.start, info.end); } catch(e) {} }
+},
+
+render() {
+const focusInfo = this.captureFocus();
+const s = this.state;
+const equipamentosAtivos = s.equipamentos.filter(e=>e.ativo!==false);
+const kpisUrgentes = equipamentosAtivos.filter(e=>e.diasRestantes<=30);
+const kpisAtencao = equipamentosAtivos.filter(e=>e.diasRestantes>30 && e.diasRestantes<=60);
+const osAbertas = s.os.filter(o=>o.status==="Aberta");
+const osConcluidas = s.os.filter(o=>o.status==="Concluida").length;
+
+const ABAS = [
+{id:"dashboard",label:"📊 Dashboard"},
+{id:"equipamentos",label:"⚙️ Equipamentos"},
+{id:"os",label:"📋 Ordens de Serviço"},
+{id:"estrategia",label:"🎯 Estratégias"},
+{id:"solicitacaocorretiva",label:"🛠️ Solicitação Corretiva"},
+];
+
+let corpo = "";
+if (s.pcmAba === "dashboard") corpo = this.pcmDashboard(equipamentosAtivos, kpisUrgentes, kpisAtencao, osAbertas, osConcluidas);
+else if (s.pcmAba === "equipamentos") corpo = this.pcmEquipamentos(equipamentosAtivos);
+else if (s.pcmAba === "os") corpo = this.pcmOS();
+else if (s.pcmAba === "estrategia") corpo = this.pcmEstrategias(equipamentosAtivos);
+else if (s.pcmAba === "solicitacaocorretiva") corpo = this.pcmSolicitacaoCorretiva();
+
+const u = s.usuarioLogado;
+const iniciais = u.nome.split(" ").map(n=>n[0]).slice(0,2).join("");
+const paramsAtual = "?nome=" + encodeURIComponent(u.nome) + "&perfil=" + encodeURIComponent(u.perfil);
+
+let html = `
+<header class="header">
+<div class="header-esq">
+<div class="logo-mini">
+<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+</svg>
+</div>
+<div class="marca-texto"><h1>Sistema PCM</h1><p>Gráfica Cometa — Planejamento e Controle da Manutenção</p></div>
+</div>
+<div class="header-dir">
+${u.perfil==="Administrador" ? `<a class="btn-trocar" href="${'admin.html' + paramsAtual}">Ir para Portal Admin</a>` : ""}
+<div class="usuario-area">
+<div class="avatar">${esc(iniciais)}</div>
+<div class="usuario-info"><div class="nome">${esc(u.nome)}</div><div class="funcao">${esc(u.perfil)}</div></div>
+</div>
+<a class="btn-sair" href="login.html">Sair</a>
+</div>
+</header>
+<div class="pcm-tabs">
+${ABAS.map(a=>`<button class="pcm-tab ${s.pcmAba===a.id?'ativo':''}" data-act="setPcmAba" data-p1="${a.id}">${a.label}</button>`).join("")}
+</div>
+<div style="padding:18px 20px;max-width:1100px;margin:0 auto">${corpo}</div>
+${s.detalheOS ? this.modalDetalheOS() : ""}
+${s.excluirEq ? this.modalExcluirEq() : ""}
+`;
+if (s.toastMsg) html += `<div class="toast">${esc(s.toastMsg)}</div>`;
+document.getElementById("root").innerHTML = html;
+this.restoreFocus(focusInfo);
+},
+
+setPcmAba(id) { this.set({pcmAba:id, pcmBusca:"", pcmFiltroStatus:"Todos"}); },
+
+legendaEstrategias() {
+return `
+<div style="background:#fff;border:1px solid var(--borda);border-radius:12px;padding:14px 18px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+<div style="font-size:10px;font-weight:700;color:var(--texto-sec);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Legenda — Estratégias de Manutenção</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+${Object.entries(EST).map(([k,v])=>`<span style="background:${v.bg};color:${v.color};border:1.5px solid ${v.color}33;padding:4px 12px;border-radius:99px;font-size:11px;font-weight:600">${esc(v.label)}</span>`).join("")}
+</div>
+</div>
+`;
+},
+
+bdg(label,color,bg){ return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap">${esc(label)}</span>`; },
+cbdg(cls){ const c=CC[cls]||CC.B; return `<span style="background:${c.bg};color:${c.text};border:1px solid ${c.border};padding:2px 8px;border-radius:99px;font-weight:700;font-size:11px">${esc(cls)}</span>`; },
+ubdg(dias){
+let color,bg,txt;
+if(dias<=0){color="#7c3aed";bg="#f5f3ff";txt=`🔴 ${dias}d`;}
+else if(dias<=30){color="#A81616";bg="rgba(204,27,27,.08)";txt=`⚠ ${dias}d`;}
+else if(dias<=60){color="#854d0e";bg="#fef9c3";txt=`⏰ ${dias}d`;}
+else {color="#166534";bg="#f0fdf4";txt=`✓ ${dias}d`;}
+return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">${txt}</span>`;
+},
+
+
+pcmDashboard(equipamentosAtivos, urgentes, atencao, osAbertas, osConcluidas) {
+const proximas = equipamentosAtivos.filter(e=>e.diasRestantes<=30).sort((a,b)=>a.diasRestantes-b.diasRestantes).slice(0,7);
+const cardDef = [
+{tipo:"urgentes",icon:"🚨",label:"Interv. ≤ 30d",count:urgentes.length,color:"#CC1B1B",bg:"rgba(204,27,27,.08)",desc:"Gerar OS urgente"},
+{tipo:"atencao",icon:"⏰",label:"Interv. 31–60d",count:atencao.length,color:"#b45309",bg:"#fef9c3",desc:"Gerar OS de atenção"},
+{tipo:"abertas",icon:"📂",label:"OS Abertas",count:osAbertas.length,color:"#2563eb",bg:"#eff6ff",desc:"Revisar OS abertas"},
+];
+const kpisMini = [
+{label:"Total Equip.",val:equipamentosAtivos.length,color:"#27272a",icon:"⚙️"},
+{label:"Classe A",val:equipamentosAtivos.filter(e=>e.criClasse==="A").length,color:"#CC1B1B",icon:"🔴"},
+{label:"Classe B",val:equipamentosAtivos.filter(e=>e.criClasse==="B").length,color:"#b45309",icon:"🟡"},
+{label:"Classe C",val:equipamentosAtivos.filter(e=>e.criClasse==="C").length,color:"#0d9488",icon:"🟢"},
+{label:"OS Concluídas",val:osConcluidas,color:"#0d9488",icon:"✅"},
+];
+return `
+<div class="grid-kpi">
+${kpisMini.map(k=>`<div class="card-kpi" style="border-top:3px solid ${k.color}"><div style="font-size:18px">${k.icon}</div><div class="card-kpi-valor" style="color:${k.color}">${k.val}</div><div class="card-kpi-label">${esc(k.label)}</div></div>`).join("")}
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:22px">
+${cardDef.map(c=>`
+<div style="background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.07);overflow:hidden;border:1px solid var(--borda)">
+<div style="background:${c.bg};padding:16px 18px;display:flex;align-items:center;gap:12px;border-bottom:3px solid ${c.color}">
+<span style="font-size:30px">${c.icon}</span>
+<div><div style="font-weight:700;font-size:13px;color:${c.color}">${c.label}</div><div style="font-size:27px;font-weight:800;color:${c.color};line-height:1.1">${c.count}</div><div style="font-size:10px;color:var(--texto-sec)">equipamentos</div></div>
+</div>
+<div style="padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+<span style="font-size:11px;color:var(--texto-sec)">Gerar OS automaticamente</span>
+<button data-act="iniciarFluxo" data-p1="${c.tipo}" style="padding:8px 16px;background:${c.color};color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:11px;white-space:nowrap">⚡ ${c.desc}</button>
+</div>
+</div>
+`).join("")}
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+<div style="background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+<div style="font-weight:700;margin-bottom:12px;font-size:13px">📅 Próximas Intervenções (≤ 30 dias)</div>
+${proximas.length===0?'<div style="color:#64748b;font-size:12px">Nenhuma.</div>':proximas.map(e=>`
+<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9">
+<div><div style="font-size:11px;font-weight:600">${esc(e.desc)}</div><div style="font-size:10px;color:#64748b">${esc(e.tag)} · ${fmtDate(e.dataIntervencao)}</div></div>
+${this.ubdg(e.diasRestantes)}
+</div>`).join("")}
+</div>
+<div style="background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+<div style="font-weight:700;margin-bottom:12px;font-size:13px">📊 Calendário — Próximos 6 Meses</div>
+<div style="display:flex;gap:8px">
+${Array.from({length:6},(_,i)=>{
+const ini=addDias(HOJE,i*30), fim=addDias(HOJE,(i+1)*30);
+const label = ini.toLocaleDateString("pt-BR",{month:"short",year:"2-digit"});
+const n = this.state.equipamentos.filter(e=>e.dataIntervencao>=ini && e.dataIntervencao<fim).length;
+const h = n>0 ? Math.max(16, Math.round(n/Math.max(this.state.equipamentos.length,1)*200)) : 4;
+const cor = i===0?"#dc2626":i===1?"#d97706":"#2563eb";
+return `<div style="flex:0 0 auto;width:64px;text-align:center">
+<div style="font-size:10px;color:#64748b;margin-bottom:4px">${label}</div>
+<div style="display:flex;align-items:flex-end;justify-content:center;height:56px"><div style="width:36px;height:${h}px;background:${cor};border-radius:4px 4px 0 0"></div></div>
+<div style="font-size:13px;font-weight:700;color:${n>3?'#dc2626':'#1e293b'};margin-top:4px">${n}</div>
+</div>`;
+}).join("")}
+</div>
+</div>
+</div>
+`;
+},
+
+pcmEquipamentos(equipamentosAtivos) {
+const s = this.state;
+let formHtml = "";
+if (s.eqFormAberto) formHtml = this.formEquipamento();
+return `
+${this.legendaEstrategias()}
+${formHtml}
+<div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid var(--borda);overflow-x:auto">
+<div style="padding:16px 18px;border-bottom:1px solid var(--borda);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">
+<span>⚙️ Lista de Equipamentos — ${equipamentosAtivos.length} itens</span>
+${!s.eqFormAberto ? `<button data-act="abrirNovoEquipamento" style="padding:8px 16px;background:#CC1B1B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">+ Novo Equipamento</button>` : ""}
+</div>
+<table style="width:100%;border-collapse:collapse;font-size:11px">
+<thead><tr style="background:var(--fundo);border-bottom:2px solid var(--borda)">
+${["TAG","Descrição","Cód. Peça","Máquina","Crit.","Classe","Prazo (d)","Data-base","Data Prevista","Dias Rest.","Estratégias",""].map(h=>`<th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--texto-sec);white-space:nowrap;font-size:10px;text-transform:uppercase">${h}</th>`).join("")}
+</tr></thead>
+<tbody>
+${equipamentosAtivos.map((eq,i)=>`
+<tr style="border-bottom:1px solid #f4f4f5;background:${i%2===0?'#fff':'var(--fundo)'}">
+<td style="padding:9px 12px;font-weight:700;color:#CC1B1B;font-family:monospace;font-size:10px">${esc(eq.tag)}</td>
+<td style="padding:9px 12px">${esc(eq.desc)}</td>
+<td style="padding:9px 12px;font-family:monospace;font-size:10px;color:var(--texto-sec)">${esc(eq.cod||"—")}</td>
+<td style="padding:9px 12px;font-size:10px">${esc(eq.maquina||"—")}</td>
+<td style="padding:9px 12px;font-weight:700">${eq.criTotal}</td>
+<td style="padding:9px 12px">${this.cbdg(eq.criClasse)}</td>
+<td style="padding:9px 12px;text-align:center">${eq.prazoD}d</td>
+<td style="padding:9px 12px;font-size:10px">${eq.naoSeiData?'<span style="color:#b45309;font-style:italic">Cadastro</span>':fmtDate(new Date(eq.ultimaManutencao))}</td>
+<td style="padding:9px 12px;white-space:nowrap">${fmtDate(eq.dataIntervencao)}</td>
+<td style="padding:9px 12px">${this.ubdg(eq.diasRestantes)}</td>
+<td style="padding:9px 12px"><div style="display:flex;gap:3px;flex-wrap:wrap">${eq.estrategias.map(e=>this.bdg(e,EST[e].color,EST[e].bg)).join("")}</div></td>
+<td style="padding:9px 12px"><div style="display:flex;gap:5px">
+<button data-act="abrirEditarEquipamento" data-p1="${esc(eq.tag)}" title="Editar" style="padding:5px 10px;background:#fff;border:1px solid var(--borda);border-radius:6px;cursor:pointer;font-size:10px">✏️</button>
+${PERFIS_PODEM_EXCLUIR.includes(this.state.usuarioLogado.perfil)
+? `<button data-act="abrirExclusao" data-p1="${esc(eq.tag)}" title="Excluir" style="padding:5px 10px;background:rgba(204,27,27,.08);border:1px solid rgba(204,27,27,.18);border-radius:6px;cursor:pointer;font-size:10px;color:#A81616">🗑️</button>`
+: `<button disabled title="Sem permissão" style="padding:5px 10px;background:var(--fundo);border:1px solid var(--borda);border-radius:6px;cursor:not-allowed;font-size:10px;color:#a1a1aa">🗑️</button>`}
+</div></td>
+</tr>
+`).join("")}
+</tbody>
+</table>
+</div>
+`;
+},
+
+abrirNovoEquipamento() {
+this.set({ eqFormAberto:"novo", eqFormErros:{}, eqFormDados: {desc:"",tag:"",cod:"",maquina:"CD",prazoD:"",ultimaManutencao:"",naoSeiData:false,matriz:{},estrategias:[]} });
+},
+abrirEditarEquipamento(tag) {
+const eq = this.state.equipamentos.find(e=>e.tag===tag);
+if(!eq) return;
+this.set({ eqFormAberto: eq, eqFormErros:{}, eqFormDados: {
+desc:eq.desc, tag:eq.tag, cod:eq.cod, maquina:eq.maquina, prazoD:eq.prazoD,
+ultimaManutencao:eq.ultimaManutencao, naoSeiData:eq.naoSeiData, matriz:{}, estrategias:[...eq.estrategias],
+criTotalFixo: eq.criTotal, criClasseFixa: eq.criClasse
+}});
+},
+fecharFormEquipamento() { this.set({ eqFormAberto:null, eqFormDados:null, eqFormErros:{} }); },
+
+
+formEquipamento() {
+const s = this.state;
+const d = s.eqFormDados;
+const editando = s.eqFormAberto !== "novo";
+const criAtual = d.criTotalFixo !== undefined ? d.criTotalFixo : calcCri(d.matriz);
+const classeAtual = d.criClasseFixa !== undefined ? d.criClasseFixa : calcClasse(criAtual);
+const dataRef = d.naoSeiData ? HOJE : (d.ultimaManutencao ? new Date(d.ultimaManutencao) : null);
+const prevInt = (dataRef && d.prazoD && !isNaN(d.prazoD) && Number(d.prazoD)>0) ? addDias(dataRef, Number(d.prazoD)) : null;
+
+return `
+<div style="background:#fff;border:2px solid #CC1B1B;border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 4px 16px rgba(204,27,27,.07)">
+<div style="font-weight:700;color:#CC1B1B;font-size:13px;margin-bottom:14px">${editando?`✏️ Editando: ${esc(d.desc)} (${esc(d.tag)})`:"+ Cadastrar Novo Equipamento"}</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+<div><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:2px;font-weight:600">Descrição *</label>
+<input value="${esc(d.desc)}" data-bind="eqFormDados.desc" placeholder="Ex: Motor principal" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box"></div>
+<div><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:2px;font-weight:600">TAG *</label>
+<input value="${esc(d.tag)}" ${editando?'readonly style="background:var(--fundo)"':''} data-bind="eqFormDados.tag" placeholder="Ex: CD002.1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box"></div>
+<div><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:2px;font-weight:600">Código da Peça</label>
+<input value="${esc(d.cod||'')}" data-bind="eqFormDados.cod" placeholder="Ex: L2.010.011F" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box"></div>
+<div><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:2px;font-weight:600">Máquina</label>
+<select data-bind="eqFormDados.maquina" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box">
+${MAQUINAS.map(m=>`<option ${d.maquina===m?'selected':''}>${m}</option>`).join("")}
+</select></div>
+<div><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:2px;font-weight:600">Prazo de Manutenção (dias) *</label>
+<input type="number" min="1" value="${esc(d.prazoD)}" data-bind="eqFormDados.prazoD" data-rerender="1" placeholder="Ex: 90" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box"></div>
+</div>
+
+<div style="background:var(--fundo);border:1.5px solid ${s.eqFormErros.dataBase?'#dc2626':'var(--borda)'};border-radius:10px;padding:14px 16px;margin-bottom:14px">
+<div style="font-weight:700;font-size:12px;margin-bottom:10px">📅 Data-base para cálculo das intervenções *</div>
+<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+<div style="flex:1;min-width:200px">
+<label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Última manutenção realizada</label>
+<input type="date" value="${esc(d.ultimaManutencao||'')}" ${d.naoSeiData?'disabled':''} data-bind="eqFormDados.ultimaManutencao" data-rerender="1"
+style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box;${d.naoSeiData?'opacity:.45;background:#f4f4f5':''}">
+</div>
+<div style="display:flex;align-items:center;padding-top:20px;color:#a1a1aa;font-size:11px;font-weight:600">ou</div>
+<div style="display:flex;align-items:center;padding-top:16px;gap:8px;cursor:pointer" data-act="toggleNaoSeiData">
+<div style="width:20px;height:20px;border-radius:5px;border:2px solid ${d.naoSeiData?'#CC1B1B':'#a1a1aa'};background:${d.naoSeiData?'#CC1B1B':'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0">${d.naoSeiData?'<span style="color:#fff;font-size:11px;font-weight:800">✓</span>':''}</div>
+<div><div style="font-size:12px;font-weight:600;color:${d.naoSeiData?'#CC1B1B':'#27272a'}">Não sei informar</div><div style="font-size:10px;color:var(--texto-sec)">Usar data de cadastro como referência</div></div>
+</div>
+</div>
+${prevInt?`<div style="margin-top:10px;background:${d.naoSeiData?'#fef9c3':'rgba(204,27,27,.08)'};border:1px solid ${d.naoSeiData?'#fde047':'rgba(204,27,27,.18)'};border-radius:8px;padding:8px 12px;font-size:11px">
+<span style="font-weight:700;color:${d.naoSeiData?'#854d0e':'#A81616'}">${d.naoSeiData?`📌 Referência: data de cadastro (hoje, ${fmtDate(HOJE)})`:`📌 Referência: última manutenção (${fmtDate(new Date(d.ultimaManutencao))})`}</span>
+<span style="color:var(--texto-sec);margin-left:8px">→ Próxima intervenção prevista: </span>
+<span style="font-weight:700;color:${diffDias(prevInt)<=30?'#CC1B1B':diffDias(prevInt)<=60?'#b45309':'#0d9488'}">${fmtDate(prevInt)} (${diffDias(prevInt)}d)</span>
+</div>`:""}
+</div>
+${s.eqFormErros.dataBase?`<div style="font-size:10px;color:#dc2626;margin:-10px 0 14px">⚠ ${esc(s.eqFormErros.dataBase)}</div>`:""}
+
+
+${d.criTotalFixo===undefined ? `
+<div style="background:#fff;border:2px solid ${s.eqFormErros.matriz?'#dc2626':'var(--borda)'};border-radius:10px;overflow:hidden;margin-bottom:14px">
+<div style="background:#1A202C;padding:11px 16px"><span style="color:#fff;font-weight:700;font-size:12px">📊 Matriz de Criticidade</span></div>
+${MATRIZ.map((item,idx)=>{
+const minVal = Math.min(...item.opcoes.map(o=>o.val));
+const maxVal = Math.max(...item.opcoes.map(o=>o.val));
+const manualVal = d.matriz[`${item.id}_manual`] ?? "";
+const manualNum = manualVal!=="" ? Number(manualVal) : null;
+const manualErr = manualNum!==null && (manualNum<minVal || manualNum>maxVal);
+const efetivo = (manualNum!==null && !manualErr) ? manualNum : d.matriz[item.id];
+return `
+<div style="display:grid;grid-template-columns:2fr 50px 1fr;gap:8px;padding:10px 14px;border-bottom:${idx<MATRIZ.length-1?'1px solid #f4f4f5':'none'};align-items:start;background:${idx%2===0?'#fff':'var(--fundo)'}">
+<div style="font-size:11px;font-weight:600;padding-top:4px"><span style="color:#a1a1aa;margin-right:4px">${item.id}.</span>${esc(item.label)}</div>
+<div style="text-align:center;font-weight:700;color:#CC1B1B;font-size:12px;padding-top:4px">${item.peso}</div>
+<div>
+<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+${item.opcoes.map(op=>{
+const isSel = d.matriz[item.id]===op.val;
+const dimmed = manualNum!==null && !manualErr;
+return `<button data-act="setMatrizVal" data-p1="${item.id}" data-p2="${op.val}" style="padding:4px 9px;border-radius:7px;border:2px solid ${(isSel&&!dimmed)?'#CC1B1B':'var(--borda)'};background:${(isSel&&!dimmed)?'#CC1B1B':'#fff'};color:${(isSel&&!dimmed)?'#fff':dimmed?'#a1a1aa':'#27272a'};cursor:pointer;font-size:10px;font-weight:${isSel?700:400};white-space:nowrap;opacity:${dimmed?.6:1}">${op.label} <span style="opacity:.7;font-size:9px">(${op.val})</span></button>`;
+}).join("")}
+</div>
+<div style="display:flex;align-items:center;gap:6px">
+<input id="matriz-manual-${item.id}" type="number" min="${minVal}" max="${maxVal}" placeholder="Manual (${minVal}–${maxVal})" value="${esc(manualVal)}"
+data-bind="eqFormDados.matriz.${item.id}_manual" data-rerender="1"
+style="padding:4px 8px;border-radius:7px;border:1.5px solid ${manualErr?'#dc2626':(manualNum!==null?'#CC1B1B':'var(--borda)')};font-size:11px;width:130px;box-sizing:border-box;background:${(manualNum!==null&&!manualErr)?'rgba(204,27,27,.08)':'#fff'}">
+${(manualNum!==null&&!manualErr)?`<span style="font-size:10px;color:#A81616;font-weight:700">→ ${manualNum} pts</span>`:""}
+${manualErr?`<span style="font-size:10px;color:#dc2626;font-weight:600">⚠ ${minVal}–${maxVal}</span>`:""}
+</div>
+${efetivo!==undefined?`<div style="font-size:9px;color:var(--texto-sec);margin-top:4px">Pontuação efetiva: <b style="color:#CC1B1B">${efetivo}</b> × peso ${item.peso} = <b style="color:var(--texto)">${efetivo*item.peso}</b>${(manualNum!==null&&!manualErr)?` <span style="color:#A81616">(valor manual)</span>`:""}</div>`:""}
+</div>
+</div>
+`;
+}).join("")}
+<div style="background:#1A202C;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+<span style="font-size:10px;color:#d4d4d8">Fórmula: (I1×10)+(I2×10)+(I3×3)+(I4×2)+(I5+I6+I7)×1 · Valor manual tem prioridade sobre a opção selecionada</span>
+<div style="display:flex;gap:8px;align-items:center">
+<div style="text-align:center"><div style="font-size:9px;color:#d4d4d8">Pontuação</div><div style="background:#fff;color:#1A202C;font-weight:800;font-size:16px;padding:3px 14px;border-radius:8px">${criAtual}</div></div>
+<div style="text-align:center"><div style="font-size:9px;color:#d4d4d8">Classe</div><div style="background:${classeAtual==='A'?'#CC1B1B':classeAtual==='B'?'#b45309':'#0d9488'};color:#fff;font-weight:800;font-size:16px;padding:3px 20px;border-radius:8px">${classeAtual}</div></div>
+<div style="font-size:10px;color:#d4d4d8">${MATRIZ.filter(m=>{
+const manual=d.matriz[`${m.id}_manual`];
+const minV=Math.min(...m.opcoes.map(o=>o.val)), maxV=Math.max(...m.opcoes.map(o=>o.val));
+if(manual!==undefined&&manual!==""){const n=Number(manual);return !isNaN(n)&&n>=minV&&n<=maxV;}
+return d.matriz[m.id]!==undefined;
+}).length}/7 respondidos</div>
+</div>
+</div>
+</div>
+${s.eqFormErros.matriz?`<div style="font-size:11px;color:#dc2626;margin:-8px 0 14px">⚠ ${esc(s.eqFormErros.matriz)}</div>`:""}
+` : `
+<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+<span style="font-size:11px;color:#166534;font-weight:600">Criticidade já calculada anteriormente:</span>
+<span style="font-weight:800;font-size:16px;color:#1e3a5f">${criAtual} pts</span>${this.cbdg(classeAtual)}
+</div>`}
+
+${(d.criTotalFixo !== undefined || matrizRespondida(d.matriz)) ? `
+<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px">
+<div style="font-weight:700;font-size:13px;color:#1e3a8a;margin-bottom:6px">💡 Sugestão de Estratégias para Classe ${classeAtual}</div>
+<div style="font-size:11.5px;color:#1e40af;line-height:1.5;margin-bottom:10px">${esc(MOTIVO_SUGESTAO[classeAtual] || "")}</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+${(SUGESTAO_ESTRATEGIA[classeAtual] || []).map(k=>this.bdg(k, EST[k].color, EST[k].bg)).join("")}
+</div>
+</div>
+` : ""}
+
+<div style="background:#fff;border-radius:10px;padding:16px;border:1px solid var(--borda);margin-bottom:14px">
+<div style="font-weight:700;font-size:13px;margin-bottom:10px">Estratégias de Manutenção *</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+${Object.entries(EST).map(([k,v])=>{
+const sel = d.estrategias.includes(k);
+return `<button data-act="toggleEstrategiaForm" data-p1="${k}" style="display:flex;flex-direction:column;align-items:center;padding:10px 16px;border-radius:10px;border:2px solid ${sel?v.color:'#e2e8f0'};background:${sel?v.bg:'#fff'};color:${sel?v.color:'#94a3b8'};cursor:pointer;min-width:90px">
+<span style="font-weight:800;font-size:14px">${k}</span><span style="font-size:9px;margin-top:3px;text-align:center;max-width:80px">${v.label.split("—")[1]?.trim()}</span>
+</button>`;
+}).join("")}
+</div>
+</div>
+${s.eqFormErros.estrategias?`<div style="font-size:10px;color:#dc2626;margin:-10px 0 14px">⚠ ${esc(s.eqFormErros.estrategias)}</div>`:""}
+
+<div style="display:flex;gap:8px">
+<button data-act="salvarFormEquipamento" style="padding:10px 24px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">💾 Salvar Equipamento</button>
+<button data-act="fecharFormEquipamento" style="padding:10px 16px;background:#fff;border:1.5px solid var(--borda);border-radius:8px;cursor:pointer;font-size:12px">Cancelar</button>
+</div>
+</div>
+`;
+},
+
+
+toggleNaoSeiData() {
+const d = this.state.eqFormDados;
+d.naoSeiData = !d.naoSeiData;
+if (d.naoSeiData) d.ultimaManutencao = "";
+this.render();
+},
+setMatrizVal(itemId, val) {
+this.state.eqFormDados.matriz[itemId] = Number(val);
+this.state.eqFormDados.matriz[`${itemId}_manual`] = "";
+this.render();
+},
+toggleEstrategiaForm(k) {
+const d = this.state.eqFormDados;
+const i = d.estrategias.indexOf(k);
+if (i>=0) d.estrategias.splice(i,1); else d.estrategias.push(k);
+this.render();
+},
+
+salvarFormEquipamento() {
+const s = this.state;
+const d = s.eqFormDados;
+const editando = s.eqFormAberto !== "novo";
+const erros = {};
+
+if (!d.desc.trim()) erros.desc = "Informe a descrição do equipamento.";
+if (!d.tag.trim()) erros.tag = "Informe a TAG do equipamento.";
+else if (!editando && s.equipamentos.find(e=>e.tag===d.tag.trim())) erros.tag = "Esta TAG já está cadastrada.";
+if (!d.prazoD || isNaN(d.prazoD) || Number(d.prazoD)<1) erros.prazoD = "Informe um prazo válido (mínimo 1 dia).";
+if (!d.naoSeiData && !d.ultimaManutencao) erros.dataBase = "Informe a data da última manutenção ou marque 'Não sei informar'.";
+if (d.criTotalFixo===undefined && !matrizRespondida(d.matriz)) erros.matriz = "Responda todos os 7 itens da matriz de criticidade (por botão ou valor manual dentro da faixa).";
+if (d.estrategias.length===0) erros.estrategias = "Selecione ao menos uma estratégia de manutenção.";
+
+if (Object.keys(erros).length > 0) { this.set({ eqFormErros: erros }); return; }
+
+const criTotal = d.criTotalFixo!==undefined ? d.criTotalFixo : calcCri(d.matriz);
+const criClasse = d.criClasseFixa!==undefined ? d.criClasseFixa : calcClasse(criTotal);
+const prazoD = Number(d.prazoD);
+const ref = d.naoSeiData ? HOJE : new Date(d.ultimaManutencao);
+const dataIntervencao = addDias(ref, prazoD);
+
+const novoEq = {
+desc:d.desc.trim(), tag:d.tag.trim(), cod:(d.cod||"").trim(), maquina:d.maquina,
+prazoD, ultimaManutencao:d.ultimaManutencao, naoSeiData:d.naoSeiData,
+criTotal, criClasse, estrategias:[...d.estrategias], setor:"Offset",
+dataRef:ref, dataIntervencao, diasRestantes:diffDias(dataIntervencao), ativo:true,
+};
+
+if (editando) {
+s.equipamentos = s.equipamentos.map(e => e.tag===s.eqFormAberto.tag ? novoEq : e);
+this.showToast("✅ Equipamento atualizado com sucesso!");
+} else {
+s.equipamentos.push(novoEq);
+this.showToast("✅ Equipamento cadastrado com sucesso!");
+}
+this.set({ eqFormAberto:null, eqFormDados:null, eqFormErros:{} });
+},
+
+temFilhos(eq) { return this.state.equipamentos.some(e => e.tag!==eq.tag && e.ativo!==false && e.tag.startsWith(eq.tag+".")); },
+temOSVinculada(eq) { return this.state.os.some(o => o.tag===eq.tag); },
+
+abrirExclusao(tag) {
+const eq = this.state.equipamentos.find(e=>e.tag===tag);
+if(!eq) return;
+if (!PERFIS_PODEM_EXCLUIR.includes(this.state.usuarioLogado.perfil)) { this.showToast("⛔ Você não tem permissão para excluir equipamentos."); return; }
+this.set({ excluirEq: eq });
+},
+
+confirmarExclusao() {
+const s = this.state;
+const eq = s.excluirEq;
+if (!eq) return;
+if (!PERFIS_PODEM_EXCLUIR.includes(s.usuarioLogado.perfil)) { this.showToast("⛔ Permissão negada."); this.set({excluirEq:null}); return; }
+if (this.temFilhos(eq)) { this.showToast("⚠️ Este equipamento possui itens subordinados."); this.set({excluirEq:null}); return; }
+if (this.temOSVinculada(eq)) { this.showToast("⚠️ Este equipamento possui OS associadas e não pode ser excluído."); this.set({excluirEq:null}); return; }
+
+s.equipamentos = s.equipamentos.map(e => e.tag===eq.tag ? {...e, ativo:false} : e);
+s.logAuditoria.push({
+acao:"EXCLUSAO_EQUIPAMENTO", tag:eq.tag, desc:eq.desc,
+usuario:s.usuarioLogado.nome, perfil:s.usuarioLogado.perfil,
+dataHora:new Date().toLocaleString("pt-BR"),
+});
+this.set({ excluirEq:null });
+this.showToast("✅ Equipamento excluído com sucesso.");
+},
+
+modalExcluirEq() {
+const eq = this.state.excluirEq;
+const bloqueado = this.temFilhos(eq) || this.temOSVinculada(eq);
+return `
+<div class="modal-overlay" data-close="excluirEq">
+<div class="modal">
+<div style="padding:24px 22px 0">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-size:26px">🗑️</span><div style="font-weight:700;font-size:15px;color:#991b1b">Excluir Equipamento</div></div>
+<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+<div style="display:flex;gap:8px;margin-bottom:4px"><span style="font-size:10px;color:#64748b;font-weight:600;min-width:60px">TAG:</span><span style="font-size:11px;font-family:monospace;color:#2563eb;font-weight:700">${esc(eq.tag)}</span></div>
+<div style="display:flex;gap:8px"><span style="font-size:10px;color:#64748b;font-weight:600;min-width:60px">Descrição:</span><span style="font-size:11px;font-weight:600">${esc(eq.desc)}</span></div>
+</div>
+<div style="font-size:12px;color:#374151;margin-bottom:18px;line-height:1.5">Tem certeza que deseja excluir este equipamento? <b>Esta ação não poderá ser desfeita.</b></div>
+${bloqueado ? `<div style="background:#fffbeb;border:1px solid #fde047;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:#854d0e">${this.temFilhos(eq)?"⚠️ Este equipamento possui itens subordinados.":"⚠️ Este equipamento possui OS associadas e não pode ser excluído."}</div>`:""}
+</div>
+<div class="modal-rodape">
+<button data-act="fecharModalExcluir" style="padding:10px 18px;background:#f1f5f9;border:none;border-radius:8px;cursor:pointer;font-size:12px;color:#374151">Cancelar</button>
+<button data-act="confirmarExclusao" ${bloqueado?'disabled':''} style="flex:1;padding:10px;background:${bloqueado?'#fca5a5':'#dc2626'};color:#fff;border:none;border-radius:8px;cursor:${bloqueado?'not-allowed':'pointer'};font-weight:700;font-size:13px">🗑️ Confirmar Exclusão</button>
+</div>
+</div>
+</div>
+`;
+},
+fecharModalExcluir() { this.set({excluirEq:null}); },
+
+
+iniciarFluxo(tipo) {
+const s = this.state;
+let lista = [];
+if (tipo==="urgentes") lista = s.equipamentos.filter(e=>e.diasRestantes<=30).sort((a,b)=>a.diasRestantes-b.diasRestantes);
+else if (tipo==="atencao") lista = s.equipamentos.filter(e=>e.diasRestantes>30 && e.diasRestantes<=60).sort((a,b)=>a.diasRestantes-b.diasRestantes);
+else if (tipo==="abertas") lista = s.os.filter(o=>o.status!=="Concluida" && o.status!=="Cancelada").map(o=>s.equipamentos.find(e=>e.tag===o.tag)).filter(Boolean);
+if (!lista.length && tipo!=="manual") { alert("Nenhum equipamento nesta categoria."); return; }
+const periodoInicial = HOJE.toISOString().slice(0,10);
+const maiorData = lista.length ? lista.reduce((max,e)=>e.dataIntervencao>max?e.dataIntervencao:max, lista[0].dataIntervencao) : HOJE;
+const periodoFinal = maiorData.toISOString().slice(0,10);
+this.set({
+aprovFlow: {
+tipo, lista, step:"config",
+form:{ responsavel: s.usuarioLogado.nome, periodoInicial: tipo==="manual"?"":periodoInicial, periodoFinal: tipo==="manual"?"":periodoFinal },
+listaDinamica: tipo==="manual" ? [] : undefined,
+selecionados: tipo==="manual" ? [] : undefined,
+carregando: false,
+},
+erroAprov: "", pcmAba:"os"
+});
+},
+
+agendarAtualizacaoListaManual() {
+const s = this.state;
+if (!s.aprovFlow || s.aprovFlow.tipo !== "manual") return;
+s.aprovFlow.carregando = true;
+this.render();
+clearTimeout(this._debounceManualTimer);
+this._debounceManualTimer = setTimeout(() => this.atualizarListaManual(), 300);
+},
+
+atualizarListaManual() {
+const s = this.state;
+if (!s.aprovFlow || s.aprovFlow.tipo !== "manual") return;
+const { periodoInicial, periodoFinal } = s.aprovFlow.form;
+const ini = periodoInicial ? parseDataLocal(periodoInicial) : null;
+const fim = periodoFinal ? parseDataLocal(periodoFinal) : null;
+
+let novaLista = [];
+if (ini || fim) {
+novaLista = s.equipamentos.filter(e => {
+if (e.ativo === false) return false;
+if (ini && e.dataIntervencao < ini) return false;
+if (fim && e.dataIntervencao > fim) return false;
+return true;
+}).sort((a,b)=>a.diasRestantes-b.diasRestantes);
+}
+
+const tagsAnteriores = new Set((s.aprovFlow.listaDinamica||[]).map(e=>e.tag));
+const tagsNovas = new Set(novaLista.map(e=>e.tag));
+const selecionadosAntes = s.aprovFlow.selecionados || [];
+
+const mantidos = selecionadosAntes.filter(tag => tagsNovas.has(tag));
+const removidos = selecionadosAntes.filter(tag => !tagsNovas.has(tag));
+const novosElegiveis = novaLista.filter(e => !tagsAnteriores.has(e.tag)).map(e=>e.tag);
+
+s.aprovFlow.listaDinamica = novaLista;
+s.aprovFlow.selecionados = Array.from(new Set([...mantidos, ...novosElegiveis]));
+s.aprovFlow.carregando = false;
+this.render();
+
+if (removidos.length > 0) {
+const nomes = removidos.map(tag => (s.equipamentos.find(e=>e.tag===tag)||{}).desc || tag);
+const texto = nomes.length > 2 ? `${nomes.slice(0,2).join(", ")} e mais ${nomes.length-2}` : nomes.join(", ");
+this.showToast(`ℹ️ ${removidos.length} equipamento(s) removido(s) da seleção (fora do novo período): ${texto}`);
+}
+},
+
+toggleSelecaoManual(tag) {
+const s = this.state;
+const sel = s.aprovFlow.selecionados || [];
+const i = sel.indexOf(tag);
+if (i >= 0) sel.splice(i,1); else sel.push(tag);
+this.render();
+},
+
+selecionarTodosManual() {
+const s = this.state;
+s.aprovFlow.selecionados = (s.aprovFlow.listaDinamica||[]).map(e=>e.tag);
+this.render();
+},
+
+limparSelecaoManual() {
+this.state.aprovFlow.selecionados = [];
+this.render();
+},
+
+cancelarAprov() { this.set({aprovFlow:null, erroAprov:""}); },
+voltarConfig() { this.state.aprovFlow.step = "config"; this.render(); },
+
+avancarPreview() {
+const s = this.state;
+const { responsavel } = s.aprovFlow.form;
+if (!responsavel) { this.set({erroAprov:"Selecione um responsável."}); return; }
+if (s.aprovFlow.tipo === "manual") {
+const { periodoInicial, periodoFinal } = s.aprovFlow.form;
+if (!periodoInicial || !periodoFinal) { this.set({erroAprov:"Informe o período inicial e final."}); return; }
+const ini = parseDataLocal(periodoInicial), fim = parseDataLocal(periodoFinal);
+if (isNaN(ini)||isNaN(fim)) { this.set({erroAprov:"Datas inválidas."}); return; }
+if (fim<ini) { this.set({erroAprov:"Período final deve ser posterior ao inicial."}); return; }
+const elegiveis = s.aprovFlow.listaDinamica || [];
+if (elegiveis.length===0) { this.set({erroAprov:"Nenhum equipamento com intervenção prevista neste período."}); return; }
+const selecionados = s.aprovFlow.selecionados || [];
+const lista = elegiveis.filter(e=>selecionados.includes(e.tag));
+if (lista.length===0) { this.set({erroAprov:"Selecione ao menos um equipamento da lista para gerar a OS."}); return; }
+s.aprovFlow.lista = lista;
+this.set({ erroAprov:"", aprovFlow: {...s.aprovFlow, step:"preview"} });
+return;
+}
+if (!s.aprovFlow.lista || s.aprovFlow.lista.length===0) { this.set({erroAprov:"Nenhum equipamento selecionado."}); return; }
+this.set({ erroAprov:"", aprovFlow: {...s.aprovFlow, step:"preview"} });
+},
+
+aprovarOS() {
+const s = this.state;
+const novas = s.aprovFlow.lista.map(eq=>{
+const id = `OS-${String(this.osCnt).padStart(3,"0")}`; this.osCnt++;
+return { id, tag:eq.tag, desc:eq.desc, criClasse:eq.criClasse, estrategias:eq.estrategias,
+responsavel:s.aprovFlow.form.responsavel, periodoInicial:s.aprovFlow.form.periodoInicial, periodoFinal:s.aprovFlow.form.periodoFinal,
+dataIntervencao:eq.dataIntervencao, prazoD:eq.prazoD, status:"Aberta", historico:[] };
+});
+s.os = [...novas, ...s.os];
+this.set({ relatorio: { lista:s.aprovFlow.lista, form:s.aprovFlow.form, dataAprov: fmtDate(HOJE) }, aprovFlow:null });
+this.showToast("✅ OS aprovadas e registradas com sucesso!");
+},
+
+fecharRelatorio() { this.set({relatorio:null}); },
+gerarPDF() { window.print(); },
+
+
+pcmOS() {
+const s = this.state;
+if (s.aprovFlow) return this.aprovFlowHtml();
+if (s.relatorio) return this.relatorioHtml();
+
+const osFilt = s.os.filter(o=>{
+const okS = s.pcmFiltroStatus==="Todos" || o.status===s.pcmFiltroStatus;
+const okB = !s.pcmBusca || o.desc.toLowerCase().includes(s.pcmBusca.toLowerCase()) || o.id.toLowerCase().includes(s.pcmBusca.toLowerCase());
+return okS && okB;
+});
+
+return `
+<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+<input value="${esc(s.pcmBusca)}" data-bind="pcmBusca" data-rerender="1" placeholder="Buscar OS..." style="flex:1;min-width:180px;padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px">
+<select data-bind="pcmFiltroStatus" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px">
+${["Todos","Aberta","Em Andamento","Concluida","Cancelada"].map(o=>`<option ${s.pcmFiltroStatus===o?'selected':''}>${o}</option>`).join("")}
+</select>
+<button data-act="iniciarFluxo" data-p1="manual" style="padding:9px 18px;background:#CC1B1B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap">+ Nova OS</button>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+${osFilt.map(o=>`
+<div data-act="abrirDetalheOS" data-p1="${o.id}" style="background:#fff;border-radius:12px;padding:13px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer;border-left:4px solid ${SC[o.status]};display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border:1px solid var(--borda)">
+<div style="flex:1;min-width:180px">
+<div style="font-weight:700;font-size:12px">${o.id} — ${esc(o.desc)}</div>
+<div style="font-size:10px;color:var(--texto-sec);margin-top:3px">👤 ${esc(o.responsavel)} | 📅 ${esc(o.periodoInicial)} → ${esc(o.periodoFinal)} | 🔧 ${fmtDate(o.dataIntervencao)}</div>
+</div>
+<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+${(o.estrategias||[]).map(e=>this.bdg(e,EST[e]?.color,EST[e]?.bg)).join("")}
+${this.cbdg(o.criClasse)}
+<span style="background:${SC[o.status]}1c;color:${SC[o.status]};padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700">${o.status}</span>
+</div>
+</div>
+`).join("")}
+${osFilt.length===0 ? `<div style="text-align:center;color:var(--texto-sec);padding:40px;background:#fff;border-radius:12px;border:1px solid var(--borda)"><div style="font-size:30px;margin-bottom:6px">📋</div>Nenhuma OS. Use os botões no <b>Dashboard</b> ou clique em <b>"+ Nova OS"</b>.</div>`:""}
+</div>
+`;
+},
+
+listaEquipamentosManualHtml() {
+const s = this.state;
+const f = s.aprovFlow;
+const { periodoInicial, periodoFinal } = f.form;
+const semFiltro = !periodoInicial && !periodoFinal;
+const lista = f.listaDinamica || [];
+const selecionados = f.selecionados || [];
+
+if (semFiltro) {
+return `
+<div style="background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:8px;padding:16px;margin-bottom:16px;text-align:center;font-size:11.5px;color:#64748b">
+📅 Informe o Período Inicial e/ou Final acima para visualizar automaticamente os equipamentos elegíveis.
+</div>`;
+}
+
+if (f.carregando) {
+return `
+<div style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:16px;overflow:hidden">
+<div style="background:#f8fafc;padding:10px 14px;font-size:11px;font-weight:700;color:#64748b;display:flex;align-items:center;gap:8px">
+<span style="width:12px;height:12px;border:2px solid #cbd5e1;border-top-color:#2563eb;border-radius:50%;display:inline-block;animation:girarListaManual .7s linear infinite"></span>
+Atualizando lista de equipamentos elegíveis...
+</div>
+<div style="padding:12px 14px">
+${[1,2,3].map(()=>`<div style="height:14px;border-radius:4px;background:linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9);background-size:200% 100%;animation:pulsoListaManual 1.2s ease-in-out infinite;margin-bottom:8px"></div>`).join("")}
+</div>
+</div>
+<style>
+@keyframes girarListaManual { to { transform:rotate(360deg); } }
+@keyframes pulsoListaManual { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+</style>`;
+}
+
+if (lista.length===0) {
+return `
+<div style="background:#fffbeb;border:1px solid #fde047;border-radius:8px;padding:14px;margin-bottom:16px;font-size:11.5px;color:#854d0e">
+⚠ Nenhum equipamento elegível para o período informado.
+</div>`;
+}
+
+return `
+<div style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:16px;overflow:hidden">
+<div style="background:#f8fafc;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #e2e8f0">
+<span style="font-size:11px;font-weight:700;color:#374151">🔧 ${selecionados.length} de ${lista.length} equipamento(s) elegível(is) selecionado(s)</span>
+<div style="display:flex;gap:6px">
+<button type="button" data-act="selecionarTodosManual" style="padding:4px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:10px;cursor:pointer;color:#2563eb;font-weight:600">Selecionar todos</button>
+<button type="button" data-act="limparSelecaoManual" style="padding:4px 10px;background:#fff;border:1px solid #cbd5e1;border-radius:6px;font-size:10px;cursor:pointer;color:#64748b;font-weight:600">Limpar seleção</button>
+</div>
+</div>
+<div style="max-height:220px;overflow-y:auto">
+${lista.map(eq=>{
+const marcado = selecionados.includes(eq.tag);
+return `
+<div data-act="toggleSelecaoManual" data-p1="${esc(eq.tag)}" style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;background:${marcado?'rgba(37,99,235,.06)':'#fff'}">
+<input type="checkbox" ${marcado?'checked':''} style="width:15px;height:15px;accent-color:#2563eb;pointer-events:none;flex-shrink:0">
+<span style="color:#2563eb;font-family:monospace;font-size:10px;min-width:100px">${esc(eq.tag)}</span>
+<span style="font-size:11.5px;flex:1;color:#1A202C">${esc(eq.desc)}</span>
+${this.ubdg(eq.diasRestantes)}
+${this.cbdg(eq.criClasse)}
+</div>`;
+}).join("")}
+</div>
+</div>`;
+},
+
+
+aprovFlowHtml() {
+const s = this.state;
+const f = s.aprovFlow;
+let stepHtml = "";
+if (f.step === "config") {
+const titulo = f.tipo==="urgentes"?"🚨 OS Urgente":f.tipo==="atencao"?"⏰ OS Atenção":f.tipo==="manual"?"📝 Nova OS Manual":"📂 OS Abertas";
+const sub = f.tipo==="manual" ? "Informe o Período Inicial e/ou Final — a lista de equipamentos elegíveis é atualizada automaticamente." :
+f.tipo==="abertas" ? `${f.lista.length} equipamento(s) com OS aberta / em andamento` :
+`${f.lista.length} equipamento(s) selecionado(s) automaticamente`;
+stepHtml = `
+<div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.10);border:2px solid #2563eb">
+<div style="font-weight:700;color:#2563eb;font-size:14px;margin-bottom:4px">${titulo}</div>
+<div style="font-size:11px;color:#64748b;margin-bottom:14px">${sub}</div>
+${f.tipo!=="manual" ? `<div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:18px;max-height:160px;overflow-y:auto">
+${f.lista.map((eq,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:10px;color:#94a3b8;min-width:22px">${i+1}.</span><span style="color:#2563eb;font-family:monospace;font-size:10px;min-width:90px">${esc(eq.tag)}</span><span style="font-size:11px;flex:1">${esc(eq.desc)}</span>${this.ubdg(eq.diasRestantes)}${this.cbdg(eq.criClasse)}</div>`).join("")}
+</div>` : ""}
+<div style="display:grid;grid-template-columns:${f.tipo==='manual'?'1fr 1fr 1fr':'1fr'};gap:12px">
+<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:2px">Responsável *</label>
+<select data-bind="aprovFlow.form.responsavel" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box">
+${RESPONSAVEIS.map(r=>`<option ${f.form.responsavel===r?'selected':''}>${r}</option>`).join("")}
+</select></div>
+${f.tipo==="manual" ? `
+<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:2px">Período Inicial *</label><input type="date" value="${esc(f.form.periodoInicial)}" data-bind="aprovFlow.form.periodoInicial" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box"></div>
+<div><label style="font-size:10px;color:#64748b;display:block;margin-bottom:2px">Período Final *</label><input type="date" value="${esc(f.form.periodoFinal)}" data-bind="aprovFlow.form.periodoFinal" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box"></div>
+` : ""}
+</div>
+${f.tipo==="manual" ? this.listaEquipamentosManualHtml() : ""}
+<div style="display:flex;gap:8px;margin-top:16px;align-items:center;flex-wrap:wrap">
+<button data-act="avancarPreview" style="padding:9px 22px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">Avançar para Revisão →</button>
+<button data-act="cancelarAprov" style="padding:9px 14px;background:#f1f5f9;border:none;border-radius:8px;cursor:pointer;font-size:12px">Cancelar</button>
+${s.erroAprov?`<span style="font-size:11px;color:#dc2626;font-weight:600">⚠ ${esc(s.erroAprov)}</span>`:""}
+</div>
+</div>
+`;
+} else {
+stepHtml = `
+<div style="background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);border:2px solid #f59e0b">
+<div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:10px 10px 0 0;padding:14px 20px"><div style="color:#fff;font-weight:700;font-size:15px">Revisão da OS — Pendente de Aprovação</div></div>
+<div style="display:flex;flex-wrap:wrap;gap:18px;padding:12px 20px;background:#fffbeb;border-bottom:1px solid #fde047">
+<div><div style="font-size:9px;color:#92400e;font-weight:600">Responsável</div><div style="font-size:12px;font-weight:700">${esc(f.form.responsavel)}</div></div>
+<div><div style="font-size:9px;color:#92400e;font-weight:600">Período</div><div style="font-size:12px;font-weight:700">${esc(f.form.periodoInicial)} → ${esc(f.form.periodoFinal)}</div></div>
+<div><div style="font-size:9px;color:#92400e;font-weight:600">Total</div><div style="font-size:12px;font-weight:700">${f.lista.length} OS</div></div>
+</div>
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+<thead><tr style="background:#f8fafc">${["#","TAG","Equipamento","Tipos","Classe","Data Prevista","Dias"].map(h=>`<th style="padding:9px 12px;text-align:left;font-weight:600;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap">${h}</th>`).join("")}</tr></thead>
+<tbody>${f.lista.map((eq,i)=>`
+<tr style="border-bottom:1px solid #f1f5f9;background:${i%2===0?'#fff':'#fafafa'}">
+<td style="padding:8px 12px;color:#94a3b8;font-size:10px">${i+1}</td>
+<td style="padding:8px 12px;font-weight:600;color:#2563eb;font-family:monospace;font-size:10px">${esc(eq.tag)}</td>
+<td style="padding:8px 12px">${esc(eq.desc)}</td>
+<td style="padding:8px 12px"><div style="display:flex;gap:3px;flex-wrap:wrap">${eq.estrategias.map(e=>this.bdg(e,EST[e].color,EST[e].bg)).join("")}</div></td>
+<td style="padding:8px 12px">${this.cbdg(eq.criClasse)}</td>
+<td style="padding:8px 12px;white-space:nowrap;font-weight:600">${fmtDate(eq.dataIntervencao)}</td>
+<td style="padding:8px 12px">${this.ubdg(eq.diasRestantes)}</td>
+</tr>`).join("")}
+</tbody>
+</table></div>
+<div style="padding:14px 20px;border-top:1px solid #f1f5f9;background:#f8fafc;border-radius:0 0 10px 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+<span style="font-size:11px;color:#64748b">⚠️ Após aprovação as OS serão registradas.</span>
+<div style="display:flex;gap:8px">
+<button data-act="voltarConfig" style="padding:8px 16px;background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px">← Corrigir</button>
+<button data-act="aprovarOS" style="padding:9px 22px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">✅ Aprovar e Registrar OS</button>
+</div>
+</div>
+</div>
+`;
+}
+
+const steps = [{n:1,label:"Selecionados"},{n:2,label:"Configurar OS"},{n:3,label:"Revisão"}];
+const stepAtual = f.step==="config"?2:3;
+return `
+<div style="margin-bottom:20px">
+<div style="display:flex;align-items:center;margin-bottom:18px;background:#fff;border-radius:10px;padding:14px 20px;box-shadow:0 1px 6px rgba(0,0,0,.08)">
+${steps.map((st,i)=>{
+const done = st.n<stepAtual, active = st.n===stepAtual;
+return `<div style="display:flex;align-items:center;flex:${i<2?1:'auto'}">
+<div style="display:flex;align-items:center;gap:7px">
+<div style="width:26px;height:26px;border-radius:50%;background:${done?'#16a34a':active?'#2563eb':'#e2e8f0'};color:${done||active?'#fff':'#94a3b8'};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px">${done?'✓':st.n}</div>
+<span style="font-size:11px;font-weight:${active?700:400};color:${active?'#1e293b':'#94a3b8'};white-space:nowrap">${st.label}</span>
+</div>${i<2?`<div style="flex:1;height:2px;background:${done?'#16a34a':'#e2e8f0'};margin:0 8px"></div>`:''}
+</div>`;
+}).join("")}
+</div>
+${stepHtml}
+</div>
+`;
+},
+
+
+relatorioHtml() {
+const r = this.state.relatorio;
+return `
+<div style="margin-bottom:20px">
+<div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:14px 14px 0 0;padding:14px 20px;border:2px solid #0d9488;border-bottom:none">
+<span style="font-weight:700;font-size:14px;color:#0f766e">✅ OS Aprovadas — ${r.lista.length} ordens · ${r.dataAprov}</span>
+<div style="display:flex;gap:8px">
+<button data-act="gerarPDF" style="padding:8px 18px;background:#CC1B1B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">📄 Gerar PDF</button>
+<button data-act="fecharRelatorio" style="padding:8px 14px;background:#fff;border:1.5px solid var(--borda);border-radius:8px;cursor:pointer;font-size:12px">✕</button>
+</div>
+</div>
+<div style="background:#fff;border:2px solid #0d9488;border-top:none;border-radius:0 0 14px 14px;overflow:hidden">
+<div style="border-bottom:4px solid #CC1B1B;padding:22px 28px">
+<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px">
+<div><div style="font-size:18px;font-weight:800">Gráfica Cometa <span style="color:#CC1B1B">— PCM</span></div><div style="font-size:11px;color:var(--texto-sec)">Relatório de Ordens de Serviço</div></div>
+<div style="text-align:right;font-size:11px;line-height:1.6">
+<div><b>Setor:</b> Offset</div><div><b>Data de Referência:</b> ${r.dataAprov}</div><div><b>OS Aprovadas:</b> ${r.lista.length}</div>
+</div>
+</div>
+</div>
+<div style="padding:20px 28px 8px"><table style="width:100%;border-collapse:collapse;font-size:11px">
+<thead><tr style="background:#CC1B1B">${["OS","TAG","Equipamento","Tipo","Classe","Data Prevista","Responsável"].map(h=>`<th style="padding:9px 10px;color:#fff;font-weight:700;text-align:left;font-size:10px">${h}</th>`).join("")}</tr></thead>
+<tbody>${r.lista.map((eq,i)=>`
+<tr style="border-bottom:1px solid var(--borda);background:${i%2===0?'#fff':'var(--fundo)'}">
+<td style="padding:8px 10px;font-size:10px">OS-${String(i+1).padStart(3,'0')}</td>
+<td style="padding:8px 10px;font-family:monospace;font-size:10px;color:#CC1B1B">${esc(eq.tag)}</td>
+<td style="padding:8px 10px">${esc(eq.desc)}</td>
+<td style="padding:8px 10px;font-size:10px">${eq.estrategias.join(", ")}</td>
+<td style="padding:8px 10px;text-align:center;font-weight:700">${eq.criClasse}</td>
+<td style="padding:8px 10px">${fmtDate(eq.dataIntervencao)}</td>
+<td style="padding:8px 10px">${esc(r.form.responsavel)}</td>
+</tr>`).join("")}
+</tbody>
+</table></div>
+</div>
+</div>
+`;
+},
+
+abrirDetalheOS(id) {
+const o = this.state.os.find(x=>x.id===id);
+if(!o) return;
+this.set({ detalheOS:o, detalheForm:{status:o.status, dataPrevConc:o.dataPrevConc||""} });
+},
+fecharDetalheOS() { this.set({detalheOS:null}); },
+
+modalDetalheOS() {
+const o = this.state.detalheOS;
+const f = this.state.detalheForm;
+return `
+<div class="modal-overlay" data-close="detalheOS">
+<div class="modal">
+<div style="padding:24px 22px 0">
+<div style="font-weight:700;font-size:16px;margin-bottom:16px">${o.id} — Detalhes</div>
+<div style="background:var(--fundo);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+<div style="display:flex;gap:8px;margin-bottom:6px"><span style="font-size:10px;color:var(--texto-sec);min-width:130px;font-weight:600">Equipamento:</span><span style="font-size:11px">${esc(o.desc)}</span></div>
+<div style="display:flex;gap:8px;margin-bottom:6px"><span style="font-size:10px;color:var(--texto-sec);min-width:130px;font-weight:600">TAG:</span><span style="font-size:11px">${esc(o.tag)}</span></div>
+<div style="display:flex;gap:8px;margin-bottom:6px"><span style="font-size:10px;color:var(--texto-sec);min-width:130px;font-weight:600">Responsável:</span><span style="font-size:11px">${esc(o.responsavel)}</span></div>
+<div style="display:flex;gap:8px;margin-bottom:6px"><span style="font-size:10px;color:var(--texto-sec);min-width:130px;font-weight:600">Data Intervenção:</span><span style="font-size:11px">${fmtDate(o.dataIntervencao)}</span></div>
+${o.dataConclusao?`<div style="display:flex;gap:8px"><span style="font-size:10px;color:var(--texto-sec);min-width:130px;font-weight:600">Concluída em:</span><span style="font-size:11px;color:#0f766e;font-weight:700">${esc(o.dataConclusao)}</span></div>`:""}
+</div>
+<div style="margin-bottom:16px">
+<div style="font-size:11px;font-weight:700;margin-bottom:8px">Atualizar Status:</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+${["Aberta","Em Andamento","Concluida","Cancelada"].map(st=>`<button data-act="setDetalheStatus" data-p1="${st}" style="padding:6px 12px;border:2px solid ${SC[st]};background:${f.status===st?SC[st]:'#fff'};color:${f.status===st?'#fff':SC[st]};border-radius:8px;cursor:pointer;font-size:11px;font-weight:600">${st}</button>`).join("")}
+</div>
+</div>
+${f.status==="Em Andamento" ? `<div style="background:#fef9c3;border:1.5px solid #fde047;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+<div style="font-size:11px;font-weight:700;color:#854d0e;margin-bottom:6px">📅 Data prevista de conclusão *</div>
+<input type="date" value="${esc(f.dataPrevConc)}" data-bind="detalheForm.dataPrevConc" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;max-width:220px">
+</div>` : ""}
+${f.status==="Concluida" ? `<div style="background:#f0fdfa;border:1.5px solid #99f6e4;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:11px;color:#0f766e">✅ A data de hoje será registrada como conclusão e a próxima intervenção será recalculada automaticamente.</div>` : ""}
+</div>
+<div class="modal-rodape">
+<button data-act="fecharDetalheOS" style="padding:11px 18px;background:#fff;border:1.5px solid var(--borda);border-radius:8px;cursor:pointer;font-size:12px">Cancelar</button>
+<button data-act="salvarDetalheOS" style="flex:1;padding:11px;background:#CC1B1B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px">💾 Salvar</button>
+</div>
+</div>
+</div>
+`;
+},
+
+setDetalheStatus(st) { this.state.detalheForm.status = st; this.render(); },
+
+
+salvarDetalheOS() {
+const s = this.state;
+const o = s.detalheOS;
+const f = s.detalheForm;
+if (f.status==="Em Andamento" && !f.dataPrevConc) { alert("Informe a data prevista de conclusão."); return; }
+const agora = new Date();
+const fmtDT = d=>d.toLocaleString("pt-BR");
+const entrada = { dataHora:fmtDT(agora), status:f.status, responsavel:o.responsavel, dataPrevConc:f.status==="Em Andamento"?f.dataPrevConc:"", dataConclusao:f.status==="Concluida"?fmtDT(agora):"" };
+if (f.status==="Concluida") {
+s.equipamentos = s.equipamentos.map(eq=>{
+if (eq.tag!==o.tag) return eq;
+const novaRef = agora, novaData = addDias(novaRef, eq.prazoD);
+return {...eq, ultimaManutencao:agora.toISOString().slice(0,10), naoSeiData:false, dataRef:novaRef, dataIntervencao:novaData, diasRestantes:diffDias(novaData)};
+});
+}
+s.os = s.os.map(x=> x.id===o.id ? {...o, status:f.status, dataPrevConc:f.status==="Em Andamento"?f.dataPrevConc:o.dataPrevConc, dataConclusao:f.status==="Concluida"?fmtDT(agora):o.dataConclusao, historico:[...(o.historico||[]),entrada]} : x);
+this.set({ detalheOS:null });
+this.showToast("✅ Alteração salva com sucesso!");
+},
+
+pcmEstrategias(equipamentosAtivos) {
+return `
+${this.legendaEstrategias()}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px">
+${Object.entries(EST).map(([key,info])=>{
+const eqs = equipamentosAtivos.filter(e=>e.estrategias.includes(key)).sort((a,b)=>a.diasRestantes-b.diasRestantes);
+return `
+<div style="background:#fff;border-radius:14px;padding:18px;box-shadow:0 1px 6px rgba(0,0,0,.07);border-top:4px solid ${info.color};border:1px solid var(--borda)">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${this.bdg(key,info.color,info.bg)}<span style="font-weight:600;font-size:13px">${info.label.split("—")[1]?.trim()}</span></div>
+<div style="display:flex;gap:14px;margin-bottom:10px">
+${["A","B","C"].map(cls=>`<div style="text-align:center"><div style="font-weight:700;color:${CC[cls].text}">${eqs.filter(e=>e.criClasse===cls).length}</div><div style="font-size:9px;color:var(--texto-sec)">Classe ${cls}</div></div>`).join("")}
+<div style="text-align:center;margin-left:auto"><div style="font-weight:700;color:${info.color};font-size:17px">${eqs.length}</div><div style="font-size:9px;color:var(--texto-sec)">Total</div></div>
+</div>
+<div style="max-height:180px;overflow-y:auto">
+${eqs.map(eq=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f4f4f5;gap:4px"><span style="color:#CC1B1B;font-family:monospace;font-size:10px;font-weight:600">${esc(eq.tag)}</span><span style="flex:1;margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">${esc(eq.desc)}</span>${this.ubdg(eq.diasRestantes)}</div>`).join("")}
+</div>
+</div>
+`;
+}).join("")}
+</div>
+`;
+},
+
+
+pcmSolicitacaoCorretiva() {
+const s = this.state;
+const f = s.scForm;
+const e = s.scErros;
+const inpErr = (campo) => e[campo] ? "border-color:#dc2626" : "";
+const codigosPeca = [...new Set(s.equipamentos.filter(eq=>eq.ativo!==false && eq.cod && eq.cod.trim()).map(eq=>eq.cod.trim()))].sort();
+
+return `
+<div style="background:#fff;border:2px solid #CC1B1B;border-radius:14px;padding:22px;margin-bottom:20px;box-shadow:0 4px 16px rgba(204,27,27,.07)">
+<div style="font-weight:700;color:#CC1B1B;font-size:14px;margin-bottom:4px">🛠️ Solicitação de Manutenção Corretiva</div>
+<div style="font-size:11px;color:var(--texto-sec);margin-bottom:18px">Registre uma ocorrência para que a equipe de PCM e Manutenção receba as informações padronizadas.</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+<div>
+<label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Departamento/Setor *</label>
+<select data-bind="scForm.setor" data-rerender="1" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('setor')};font-size:13px;width:100%;box-sizing:border-box">
+<option value="" ${!f.setor?'selected':''}>Selecione...</option>
+${SETORES.map(st=>`<option ${f.setor===st?'selected':''}>${esc(st)}</option>`).join("")}
+</select>
+${e.setor?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(e.setor)}</div>`:""}
+</div>
+<div>
+<label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Máquina *</label>
+<select data-bind="scForm.maquina" data-rerender="1" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('maquina')};font-size:13px;width:100%;box-sizing:border-box">
+<option value="" ${!f.maquina?'selected':''}>Selecione...</option>
+${MAQUINAS.map(m=>`<option ${f.maquina===m?'selected':''}>${m}</option>`).join("")}
+</select>
+${e.maquina?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(e.maquina)}</div>`:""}
+</div>
+<div>
+<label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Código da Peça *</label>
+<select data-bind="scForm.codigoPeca" data-rerender="1" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('codigoPeca')};font-size:13px;width:100%;box-sizing:border-box">
+<option value="" ${!f.codigoPeca?'selected':''}>Selecione...</option>
+${codigosPeca.map(c=>`<option ${f.codigoPeca===c?'selected':''}>${esc(c)}</option>`).join("")}
+</select>
+${codigosPeca.length===0 ? `<div style="font-size:10px;color:var(--texto-sec);margin-top:4px">Nenhum código de peça cadastrado ainda nos equipamentos.</div>` : ""}
+${e.codigoPeca?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(e.codigoPeca)}</div>`:""}
+</div>
+<div>
+<label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Data da Ocorrência *</label>
+<input type="date" value="${esc(f.dataOcorrencia)}" data-bind="scForm.dataOcorrencia" data-rerender="1" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('dataOcorrencia')};font-size:13px;width:100%;box-sizing:border-box">
+${e.dataOcorrencia?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(e.dataOcorrencia)}</div>`:""}
+</div>
+</div>
+
+<div style="margin-bottom:14px">
+<label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Ocorrência *</label>
+<input id="sc-ocorrencia" value="${esc(f.ocorrencia)}" maxlength="200" data-bind="scForm.ocorrencia" data-rerender="1" placeholder="Descreva brevemente a ocorrência" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('ocorrencia')};font-size:13px;width:100%;box-sizing:border-box">
+<div style="display:flex;justify-content:space-between;margin-top:4px">
+<span style="font-size:10px;color:#dc2626">${e.ocorrencia?`⚠ ${esc(e.ocorrencia)}`:""}</span>
+<span style="font-size:10px;color:${f.ocorrencia.length>200?'#dc2626':'var(--texto-sec)'}">${f.ocorrencia.length}/200</span>
+</div>
+</div>
+
+<div style="margin-bottom:18px">
+<label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Descrição do Impacto da Ocorrência *</label>
+<textarea id="sc-impacto" maxlength="500" data-bind="scForm.impacto" data-rerender="1" placeholder="Descreva o impacto causado (produção, qualidade, segurança etc.)" rows="4" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('impacto')};font-size:13px;width:100%;box-sizing:border-box;font-family:inherit;resize:vertical">${esc(f.impacto)}</textarea>
+<div style="display:flex;justify-content:space-between;margin-top:4px">
+<span style="font-size:10px;color:#dc2626">${e.impacto?`⚠ ${esc(e.impacto)}`:""}</span>
+<span style="font-size:10px;color:${f.impacto.length>500?'#dc2626':'var(--texto-sec)'}">${f.impacto.length}/500</span>
+</div>
+</div>
+
+<div style="background:var(--fundo);border:1.5px solid ${e.prioridade?'#dc2626':'var(--borda)'};border-radius:10px;padding:14px 16px;margin-bottom:18px">
+<div style="font-weight:700;font-size:13px;margin-bottom:2px">Classificação da Prioridade da Manutenção *</div>
+<div style="font-size:10px;color:var(--texto-sec);margin-bottom:12px">Selecione uma única opção</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+${Object.entries(PRIORIDADES_SC).map(([key,info])=>{
+const sel = f.prioridade===key;
+return `
+<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;border:2px solid ${sel?info.color:'var(--borda)'};background:${sel?info.bg:'#fff'};cursor:pointer">
+<input type="radio" name="scPrioridade" data-bind="scForm.prioridade" value="${key}" ${sel?'checked':''} style="margin-top:2px;accent-color:${info.color}">
+<div>
+<div style="font-weight:700;font-size:12.5px;color:${sel?info.color:'var(--texto)'}">${key}</div>
+<div style="font-size:11px;color:var(--texto-sec)">${info.desc}</div>
+</div>
+</label>
+`;
+}).join("")}
+</div>
+${e.prioridade?`<div style="font-size:10px;color:#dc2626;margin-top:8px">⚠ ${esc(e.prioridade)}</div>`:""}
+</div>
+
+<button data-act="salvarSolicitacaoCorretiva" style="padding:11px 26px;background:#CC1B1B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px">📝 Registrar Solicitação</button>
+</div>
+
+
+<div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid var(--borda);overflow-x:auto">
+<div style="padding:16px 18px;border-bottom:1px solid var(--borda);font-weight:700;font-size:13px">
+🛠️ Solicitações Registradas — ${s.solicitacoesCorretivas.length} item(ns)
+</div>
+${s.solicitacoesCorretivas.length===0 ? `
+<div style="padding:40px;text-align:center;color:var(--texto-sec)">
+<div style="font-size:28px;margin-bottom:8px">📭</div>
+Nenhuma solicitação registrada ainda.
+</div>
+` : `
+<table style="width:100%;border-collapse:collapse;font-size:11px">
+<thead><tr style="background:var(--fundo);border-bottom:2px solid var(--borda)">
+${["ID","Setor","Máquina","Cód. Peça","Data Ocorrência","Ocorrência","Prioridade","Solicitante","Data/Hora (Brasília)"].map(h=>`<th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--texto-sec);white-space:nowrap;font-size:10px;text-transform:uppercase">${h}</th>`).join("")}
+</tr></thead>
+<tbody>
+${s.solicitacoesCorretivas.map((r,i)=>{
+const pr = PRIORIDADES_SC[r.prioridade];
+return `
+<tr style="border-bottom:1px solid #f4f4f5;background:${i%2===0?'#fff':'var(--fundo)'}">
+<td style="padding:9px 12px;font-weight:700;color:#CC1B1B;font-family:monospace;font-size:10px">${esc(r.id)}</td>
+<td style="padding:9px 12px">${esc(r.setor)}</td>
+<td style="padding:9px 12px">${esc(r.maquina)}</td>
+<td style="padding:9px 12px;font-family:monospace;font-size:10px">${esc(r.codigoPeca)}</td>
+<td style="padding:9px 12px;white-space:nowrap">${fmtDate(parseDataLocal(r.dataOcorrencia))}</td>
+<td style="padding:9px 12px;max-width:200px">${esc(r.ocorrencia)}</td>
+<td style="padding:9px 12px">${this.bdg(r.prioridade, pr.color, pr.bg)}</td>
+<td style="padding:9px 12px">${esc(r.solicitante)}</td>
+<td style="padding:9px 12px;white-space:nowrap;font-size:10px">${esc(r.dataHoraSolicitacao)}</td>
+</tr>
+`;}).join("")}
+</tbody>
+</table>
+`}
+</div>
+`;
+},
+
+salvarSolicitacaoCorretiva() {
+const s = this.state;
+const f = s.scForm;
+const erros = {};
+
+if (!f.setor) erros.setor = "Selecione o departamento/setor.";
+if (!f.maquina) erros.maquina = "Selecione a máquina.";
+if (!f.codigoPeca) erros.codigoPeca = "Selecione o código da peça.";
+if (!f.dataOcorrencia) {
+erros.dataOcorrencia = "Informe a data da ocorrência.";
+} else if (isNaN(parseDataLocal(f.dataOcorrencia).getTime())) {
+erros.dataOcorrencia = "Data inválida.";
+}
+if (!f.ocorrencia.trim()) erros.ocorrencia = "Descreva a ocorrência.";
+else if (f.ocorrencia.length > 200) erros.ocorrencia = "Máximo de 200 caracteres.";
+if (!f.impacto.trim()) erros.impacto = "Descreva o impacto da ocorrência.";
+else if (f.impacto.length > 500) erros.impacto = "Máximo de 500 caracteres.";
+if (!f.prioridade) erros.prioridade = "Selecione a prioridade da manutenção.";
+
+if (Object.keys(erros).length > 0) { this.set({ scErros: erros }); return; }
+
+const agora = new Date();
+const dataHoraBrasilia = agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+const registro = {
+id: `SC-${String(this.scCnt).padStart(3,"0")}`,
+setor: f.setor, maquina: f.maquina, codigoPeca: f.codigoPeca.trim(),
+dataOcorrencia: f.dataOcorrencia, ocorrencia: f.ocorrencia.trim(), impacto: f.impacto.trim(),
+prioridade: f.prioridade, dataHoraSolicitacao: dataHoraBrasilia,
+solicitante: s.usuarioLogado.nome, status: "Pendente",
+};
+this.scCnt++;
+s.solicitacoesCorretivas = [registro, ...s.solicitacoesCorretivas];
+
+this.set({
+scForm: { setor:"", maquina:"", codigoPeca:"", dataOcorrencia:"", ocorrencia:"", impacto:"", prioridade:"" },
+scErros: {}
+});
+this.showToast("✅ Solicitação de manutenção corretiva registrada com sucesso!");
+},
+};
+
+
+const root = document.getElementById("root");
+
+root.addEventListener("click", function(ev){
+const overlay = ev.target.closest(".modal-overlay");
+if (overlay && ev.target === overlay) {
+const key = overlay.getAttribute("data-close");
+if (key) { App.state[key] = null; App.render(); }
+return;
+}
+const el = ev.target.closest("[data-act]");
+if (!el) return;
+ev.preventDefault();
+const act = el.getAttribute("data-act");
+const p1 = el.getAttribute("data-p1");
+const p2 = el.getAttribute("data-p2");
+if (typeof App[act] === "function") App[act](p1, p2);
+});
+
+const BINDS_PERIODO_OS_MANUAL = ["aprovFlow.form.periodoInicial","aprovFlow.form.periodoFinal"];
+
+root.addEventListener("input", function(ev){
+const el = ev.target;
+if (el.hasAttribute("data-bind")) {
+const bind = el.getAttribute("data-bind");
+setPath(App.state, bind, el.value);
+if (BINDS_PERIODO_OS_MANUAL.includes(bind)) { App.agendarAtualizacaoListaManual(); return; }
+if (el.hasAttribute("data-rerender")) App.render();
+}
+});
+
+root.addEventListener("change", function(ev){
+const el = ev.target;
+if (el.tagName === "SELECT" || el.type === "date" || el.type === "radio") {
+if (el.hasAttribute("data-bind")) {
+const bind = el.getAttribute("data-bind");
+const val = el.type === "radio" ? el.value : el.value;
+setPath(App.state, bind, val);
+if (BINDS_PERIODO_OS_MANUAL.includes(bind)) { App.agendarAtualizacaoListaManual(); return; }
+if (el.hasAttribute("data-rerender")) App.render();
+}
+}
+});
+
+App.render();
+</script>
+</body>
+</html>
