@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal Admin — Sistema PCM</title>
+<style>
+:root{
+--vermelho:#CC1B1B; --vermelho-escuro:#A81616; --vermelho-suave:rgba(204,27,27,.10); --vermelho-suave-2:rgba(204,27,27,.18);
+--fundo:#F7F8FC; --branco:#FFFFFF; --texto:#1A202C; --texto-sec:#718096; --borda:#E7EAF3;
+--sombra-sm:0 1px 3px rgba(26,32,44,.06); --sombra-md:0 8px 24px rgba(26,32,44,.08);
+--radius:12px; --radius-sm:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter','Segoe UI',Roboto,Arial,sans-serif;background:var(--fundo);color:var(--texto)}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+a{color:inherit;text-decoration:none}
+
+.header{position:fixed;top:0;left:0;right:0;height:64px;background:var(--branco);border-bottom:1px solid var(--borda);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:100;box-shadow:var(--sombra-sm)}
+.header-esq{display:flex;align-items:center;gap:12px}
+.logo-mini{width:38px;height:38px;border-radius:10px;background:var(--vermelho);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.marca-texto h1{font-size:.92rem;font-weight:700;line-height:1.2}
+.marca-texto p{font-size:.7rem;color:var(--texto-sec)}
+.header-dir{display:flex;align-items:center;gap:8px}
+.usuario-area{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border-radius:999px;border:1px solid var(--borda)}
+.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--vermelho),var(--vermelho-escuro));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem;flex-shrink:0}
+.usuario-info .nome{font-size:.8rem;font-weight:600;line-height:1.2}
+.usuario-info .funcao{font-size:.68rem;color:var(--texto-sec)}
+.btn-sair{padding:8px 14px;font-size:.78rem;font-weight:600;color:var(--vermelho);background:var(--vermelho-suave);border:none;border-radius:8px;display:inline-block}
+.btn-sair:hover{background:var(--vermelho-suave-2)}
+.btn-trocar{padding:8px 14px;font-size:.78rem;font-weight:600;color:var(--texto);background:var(--fundo);border:1px solid var(--borda);border-radius:8px;display:inline-block}
+.btn-trocar:hover{background:var(--vermelho-suave);border-color:transparent;color:var(--vermelho)}
+
+.sidebar{position:fixed;top:64px;left:0;bottom:0;width:238px;background:var(--branco);border-right:1px solid var(--borda);padding:16px 12px;overflow-y:auto;z-index:90}
+.menu-secao{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--texto-sec);padding:14px 12px 6px}
+.menu-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;font-size:.85rem;font-weight:500;color:var(--texto);cursor:pointer;margin-bottom:2px;position:relative;border:none;background:none;width:100%;text-align:left}
+.menu-item:hover{background:var(--fundo)}
+.menu-item.ativo{background:var(--vermelho-suave);color:var(--vermelho);font-weight:600}
+.menu-item.ativo::before{content:'';position:absolute;left:-12px;top:8px;bottom:8px;width:3px;background:var(--vermelho);border-radius:0 3px 3px 0}
+
+.conteudo{margin-left:238px;margin-top:64px;padding:26px 30px 60px;min-height:calc(100vh - 64px)}
+.cabecalho-pagina{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:22px}
+.cabecalho-pagina h2{font-size:1.35rem;font-weight:700}
+.breadcrumb{font-size:.8rem;color:var(--texto-sec);margin-top:4px}
+.breadcrumb .ativo{color:var(--vermelho);font-weight:600}
+
+.grid-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.card-kpi{background:var(--branco);border-radius:var(--radius);padding:14px;box-shadow:var(--sombra-sm);border:1px solid var(--borda)}
+.card-kpi-valor{font-size:1.5rem;font-weight:800}
+.card-kpi-label{font-size:.72rem;color:var(--texto-sec);margin-top:2px;font-weight:600}
+
+.painel{background:var(--branco);border-radius:var(--radius);border:1px solid var(--borda);box-shadow:var(--sombra-sm);margin-bottom:22px;overflow:hidden}
+.painel-cab{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--borda);flex-wrap:wrap;gap:12px}
+.painel-cab h3{font-size:.98rem;font-weight:700}
+.painel-cab .subt{font-size:.76rem;color:var(--texto-sec);margin-top:2px}
+.busca-wrap{position:relative;max-width:240px;flex:1;min-width:170px}
+.busca-wrap input{width:100%;padding:8px 12px 8px 30px;border:1.5px solid var(--borda);border-radius:8px;font-size:.83rem;background:var(--fundo)}
+.busca-wrap input:focus{outline:none;border-color:var(--vermelho);background:#fff;box-shadow:0 0 0 3px var(--vermelho-suave)}
+.busca-wrap .icone{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--texto-sec);font-size:.8rem}
+
+table.tab-adm{width:100%;border-collapse:collapse;font-size:.82rem}
+table.tab-adm thead th{text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--texto-sec);font-weight:700;padding:11px 16px;background:var(--fundo);border-bottom:1px solid var(--borda);white-space:nowrap}
+table.tab-adm tbody td{padding:11px 16px;border-bottom:1px solid var(--borda)}
+table.tab-adm tbody tr:hover{background:#FBFBFE}
+table.tab-adm tbody tr:last-child td{border-bottom:none}
+.usr-tab{display:flex;align-items:center;gap:9px}
+.usr-tab .avatar{width:30px;height:30px;font-size:.68rem}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:.66rem;font-weight:700;padding:3px 10px;border-radius:999px}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge-ativo{color:#16a34a;background:#ecfdf3}
+.badge-inativo{color:var(--texto-sec);background:#EDF0F5}
+.badge-pendente{color:#b45309;background:#fffbeb}
+.badge-nivel{font-size:.66rem;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--vermelho-suave);color:var(--vermelho)}
+.acao-icone{background:none;border:none;color:var(--texto-sec);padding:6px;border-radius:8px}
+.acao-icone:hover{background:var(--vermelho-suave);color:var(--vermelho)}
+
+.placeholder-box{background:var(--branco);border:1px dashed var(--borda);border-radius:var(--radius);padding:50px 20px;text-align:center;color:var(--texto-sec);font-size:.85rem}
+.placeholder-box .emoji{font-size:1.8rem;margin-bottom:10px}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(26,32,44,.5);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px}
+.modal{background:var(--branco);border-radius:var(--radius);width:100%;max-width:460px;box-shadow:var(--sombra-md);max-height:90vh;overflow-y:auto}
+.modal-cab{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--borda)}
+.modal-cab h3{font-size:1rem;font-weight:700}
+.modal-cab button{background:none;border:none;font-size:1rem}
+.modal-corpo{padding:20px 22px}
+.modal-rodape{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--borda);flex-wrap:wrap}
+.modal-erro{margin:0 22px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;color:#dc2626;font-size:.8rem}
+.log-item{padding:11px 14px;border-radius:8px;background:var(--fundo);margin-bottom:8px;font-size:.8rem;border-left:3px solid var(--vermelho)}
+.campo-lbl{display:block;font-size:.82rem;font-weight:600;margin-bottom:6px}
+.campo-inp{width:100%;padding:11px 13px;font-size:.9rem;border:1.5px solid var(--borda);border-radius:8px}
+
+.aviso-mock{background:#fffbeb;border:1px solid #fde047;border-radius:10px;padding:12px 16px;font-size:.78rem;color:#854d0e;margin-bottom:20px;line-height:1.5}
+.secao-indicador{margin-bottom:8px;margin-top:26px}
+.secao-indicador:first-child{margin-top:0}
+.secao-indicador h3{font-size:1.02rem;font-weight:700;margin-bottom:2px}
+.card-ind{background:var(--branco);border:1px solid var(--borda);border-radius:var(--radius);box-shadow:var(--sombra-sm);padding:18px 20px;margin-bottom:14px}
+.card-ind-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.card-ind-titulo{font-size:.95rem;font-weight:700}
+.card-ind-valor{font-size:1.6rem;font-weight:800;white-space:nowrap}
+.card-ind-status{display:inline-block;font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:999px;margin-top:4px}
+.st-ok{color:#16a34a;background:#ecfdf3}
+.st-alerta{color:#b45309;background:#fffbeb}
+.st-critico{color:#dc2626;background:#fef2f2}
+.st-info{color:#2563eb;background:#eff6ff}
+.card-ind-formula{background:var(--fundo);border-radius:8px;padding:9px 12px;font-family:monospace;font-size:.78rem;color:var(--texto);margin-bottom:10px;border-left:3px solid var(--vermelho)}
+.card-ind-texto{font-size:.82rem;color:var(--texto);line-height:1.55;margin-bottom:8px}
+.card-ind-obs{font-size:.76rem;color:var(--texto-sec);background:var(--fundo);border-radius:8px;padding:8px 12px;line-height:1.5;margin-bottom:8px}
+.card-ind-meta{font-size:.76rem;color:var(--texto-sec)}
+.mini-tab{width:100%;border-collapse:collapse;font-size:.76rem;margin-top:10px}
+.mini-tab th{text-align:left;padding:6px 10px;background:var(--fundo);font-size:.65rem;text-transform:uppercase;color:var(--texto-sec);font-weight:700}
+.mini-tab td{padding:6px 10px;border-bottom:1px solid var(--borda)}
+
+@media (max-width:900px){
+.sidebar{transform:translateX(-100%);transition:transform .25s ease;box-shadow:var(--sombra-md)}
+.sidebar.aberta{transform:translateX(0)}
+.conteudo{margin-left:0}
+.usuario-info{display:none}
+.btn-menu-mobile{display:flex !important}
+}
+.btn-menu-mobile{display:none;background:none;border:none;color:var(--texto);padding:8px;border-radius:8px;margin-right:4px}
+.btn-menu-mobile:hover{background:var(--fundo)}
+.overlay-sidebar{display:none;position:fixed;inset:0;background:rgba(26,32,44,.4);z-index:80}
+.overlay-sidebar.ativo{display:block}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function setPath(obj, path, val){ const parts = path.split("."); let o = obj; for(let i=0;i<parts.length-1;i++){ o = o[parts[i]]; } o[parts[parts.length-1]] = val; }
+
+function lerParamsUsuario() {
+const params = new URLSearchParams(window.location.search);
+return { nome: params.get("nome") || "Ana Silva", perfil: params.get("perfil") || "Administrador" };
+}
+
+const MOCK_MTBF = [
+{ tag:"CD001.1", desc:"Entrada do papel", diasOperacao:180, falhas:0, corretiva:false },
+{ tag:"CD001.1.2", desc:"Apalpador", diasOperacao:200, falhas:0, corretiva:false },
+{ tag:"CD001.2.1", desc:"Motor Tinteiro", diasOperacao:90, falhas:2, corretiva:true },
+{ tag:"CD001.3.1.4", desc:"Motor principal", diasOperacao:120, falhas:1, corretiva:true },
+{ tag:"CD001.2.2", desc:"Rolo tinta chapa 1", diasOperacao:60, falhas:4, corretiva:true },
+];
+const MOCK_REPAROS = [
+{tag:"CD001.2.1", horas:2.5}, {tag:"CD001.2.1", horas:1.5},
+{tag:"CD001.3.1.4", horas:4},
+{tag:"CD001.2.2", horas:1}, {tag:"CD001.2.2", horas:2}, {tag:"CD001.2.2", horas:1.5}, {tag:"CD001.2.2", horas:3},
+];
+const MOCK_ORDENS = [
+{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
+{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
+{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
+{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
+{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
+{tipo:"Preventiva", status:"Concluida", dentroPrazo:false}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:false},
+{tipo:"Corretiva", status:"Concluida", dentroPrazo:null}, {tipo:"Corretiva", status:"Concluida", dentroPrazo:null},
+{tipo:"Corretiva", status:"Concluida", dentroPrazo:null},
+{tipo:"Preventiva", status:"Aberta", semanasPendente:2},
+{tipo:"Preventiva", status:"Em Andamento", semanasPendente:4},
+{tipo:"Corretiva", status:"Aberta", semanasPendente:1},
+];
+
+function calcularIndicadores() {
+const mtbfLista = MOCK_MTBF.map(e => ({ ...e, mtbf: e.falhas===0 ? e.diasOperacao : +(e.diasOperacao / e.falhas).toFixed(1) }));
+const totalHorasReparo = MOCK_REPAROS.reduce((a,r)=>a+r.horas,0);
+const mttr = +(totalHorasReparo / MOCK_REPAROS.length).toFixed(1);
+const concluidas = MOCK_ORDENS.filter(o=>o.status==="Concluida");
+const totalOS = MOCK_ORDENS.length;
+const preventivasTotal = MOCK_ORDENS.filter(o=>o.tipo==="Preventiva").length;
+const corretivasTotal = MOCK_ORDENS.filter(o=>o.tipo==="Corretiva").length;
+const pctPreventiva = +(preventivasTotal/totalOS*100).toFixed(1);
+const pctCorretiva = +(corretivasTotal/totalOS*100).toFixed(1);
+const preventivasConcluidas = concluidas.filter(o=>o.tipo==="Preventiva");
+const preventivasNoPrazo = preventivasConcluidas.filter(o=>o.dentroPrazo===true).length;
+const cumprimentoPlano = preventivasConcluidas.length>0 ? +(preventivasNoPrazo/preventivasConcluidas.length*100).toFixed(1) : 0;
+const abertas = MOCK_ORDENS.filter(o=>o.status==="Aberta" || o.status==="Em Andamento");
+const backlogSemanas = abertas.reduce((a,o)=>a+(o.semanasPendente||0),0);
+const totalFalhas = MOCK_MTBF.reduce((a,e)=>a+e.falhas,0);
+const equipReincidentes = MOCK_MTBF.filter(e=>e.falhas>=2).length;
+const indiceReincidencia = +(equipReincidentes/MOCK_MTBF.length*100).toFixed(1);
+return { mtbfLista, mttr, pctPreventiva, pctCorretiva, cumprimentoPlano, backlogSemanas, abertasCount: abertas.length, totalFalhas, equipReincidentes, totalEquip: MOCK_MTBF.length, indiceReincidencia };
+}
+
+
+const App = {
+state: {
+usuarioLogado: lerParamsUsuario(),
+adminSecao: "dashboard",
+
+usuarios: [
+{ iniciais:'RC', nome:'Rafael Costa', email:'rafael.costa@cometa.com', nivel:'Administrador', depto:'TI', status:'ativo', permissoes:{cadastroEquipamento:true, emissaoOS:true, solicitacaoCorretiva:true} },
+{ iniciais:'MF', nome:'Mariana Ferreira', email:'mariana.f@cometa.com', nivel:'Gestor de Manutenção', depto:'Manutenção', status:'ativo', permissoes:{cadastroEquipamento:true, emissaoOS:true, solicitacaoCorretiva:true} },
+{ iniciais:'ML', nome:'Mauro Ledur', email:'mauro.ledur@cometa.com', nivel:'Operador', depto:'Offset', status:'ativo', permissoes:{cadastroEquipamento:false, emissaoOS:true, solicitacaoCorretiva:true} },
+{ iniciais:'CL', nome:'Camila Lima', email:'camila.lima@cometa.com', nivel:'Operador', depto:'Acabamento', status:'pendente', permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:true} },
+{ iniciais:'BS', nome:'Bruno Santos', email:'bruno.santos@cometa.com', nivel:'Visualizador', depto:'Qualidade', status:'inativo', permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false} },
+],
+adminBusca:"",
+adminModalAberto:false,
+usuarioEditandoEmail: null,
+usuarioModalErro:"",
+novoUsuario: {nome:"", email:"", nivel:"Operador", depto:"", status:"ativo", permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false}},
+
+setores: ["TI", "Manutenção", "Offset", "Acabamento", "Qualidade"],
+setorBusca: "",
+setorModalAberto: false,
+setorEditandoNome: null,
+setorModalErro: "",
+novoSetor: { nome: "" },
+
+confirmDialog: null,
+sidebarAberta: false,
+
+logAuditoria: [
+{ acao:"EXCLUSAO_EQUIPAMENTO", tag:"CD001.1.2.2", desc:"Gaita entrada (Fole)", usuario:"Mauro Ledur", perfil:"Gestor de Manutenção", dataHora:"18/07/2026 14:32:10" },
+],
+},
+
+set(patch) { Object.assign(this.state, patch); this.render(); },
+
+render() {
+const s = this.state;
+const ITENS = [
+{id:"dashboard", label:"Dashboard"},
+{id:"usuarios", label:"Usuários"},
+{id:"setores", label:"Cadastro de Setor"},
+{id:"logs", label:"Logs de Auditoria"},
+{id:"indicadores", label:"Indicadores Gerenciais"},
+];
+
+const corpo = this.renderCorpo(s);
+
+const iniciais = s.usuarioLogado.nome.split(" ").map(n=>n[0]).slice(0,2).join("");
+const paramsAtual = "?nome=" + encodeURIComponent(s.usuarioLogado.nome) + "&perfil=" + encodeURIComponent(s.usuarioLogado.perfil);
+
+const html = `
+<header class="header">
+<div class="header-esq">
+<button class="btn-menu-mobile" data-act="toggleSidebar" aria-label="Abrir menu">
+<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div class="logo-mini">
+<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+</svg>
+</div>
+<div class="marca-texto"><h1>Portal Admin</h1><p>Sistema PCM — Gráfica Cometa</p></div>
+</div>
+<div class="header-dir">
+<a class="btn-trocar" href="${'pcm.html' + paramsAtual}">Acessar Sistema PCM</a>
+<div class="usuario-area">
+<div class="avatar">${esc(iniciais)}</div>
+<div class="usuario-info"><div class="nome">${esc(s.usuarioLogado.nome)}</div><div class="funcao">${esc(s.usuarioLogado.perfil)}</div></div>
+</div>
+<a class="btn-sair" href="login.html">Sair</a>
+</div>
+</header>
+<div class="overlay-sidebar ${s.sidebarAberta?'ativo':''}" data-act="fecharSidebar"></div>
+<nav class="sidebar ${s.sidebarAberta?'aberta':''}">
+<div class="menu-secao">Administração</div>
+${ITENS.map(i=>`<button class="menu-item ${s.adminSecao===i.id?'ativo':''}" data-act="selecionarSecao" data-p1="${i.id}">${esc(i.label)}</button>`).join("")}
+</nav>
+<main class="conteudo">${corpo}</main>
+${s.adminModalAberto ? this.modalUsuario() : ""}
+${s.setorModalAberto ? this.modalSetor() : ""}
+${s.confirmDialog ? this.modalConfirmacao() : ""}
+`;
+
+document.getElementById("root").innerHTML = html;
+},
+
+renderCorpo(s) {
+if (s.adminSecao === "dashboard") return this.paginaDashboard(s);
+if (s.adminSecao === "usuarios") return this.paginaUsuarios(s);
+if (s.adminSecao === "setores") return this.paginaSetores(s);
+if (s.adminSecao === "logs") return this.paginaLogs(s);
+if (s.adminSecao === "indicadores") return this.paginaIndicadores();
+return "";
+},
+
+setAdminSecao(id) { this.set({adminSecao:id}); },
+selecionarSecao(id) { this.set({adminSecao:id, sidebarAberta:false}); },
+toggleSidebar() { this.set({ sidebarAberta: !this.state.sidebarAberta }); },
+fecharSidebar() { this.set({ sidebarAberta:false }); },
+
+
+/* ============================= DASHBOARD ============================= */
+paginaDashboard(s) {
+return `
+<div class="cabecalho-pagina"><div><h2>Visão Geral</h2><p class="breadcrumb">Portal Admin / <span class="ativo">Dashboard</span></p></div></div>
+<div class="grid-kpi">
+<div class="card-kpi"><div class="card-kpi-valor">${s.usuarios.length}</div><div class="card-kpi-label">Usuários cadastrados</div></div>
+<div class="card-kpi"><div class="card-kpi-valor">${s.usuarios.filter(u=>u.status==='ativo').length}</div><div class="card-kpi-label">Usuários ativos</div></div>
+<div class="card-kpi"><div class="card-kpi-valor">${s.setores.length}</div><div class="card-kpi-label">Setores cadastrados</div></div>
+<div class="card-kpi"><div class="card-kpi-valor">${s.logAuditoria.length}</div><div class="card-kpi-label">Eventos de auditoria</div></div>
+</div>
+<div class="placeholder-box"><div class="emoji">⚙️</div>A operação do PCM (equipamentos, ordens de serviço, estratégias) roda em um sistema dedicado.<br>Use o botão <b>"Acessar Sistema PCM"</b> no topo da tela.</div>
+`;
+},
+
+/* ============================= USUÁRIOS ============================= */
+paginaUsuarios(s) {
+const termo = s.adminBusca.toLowerCase();
+const filtrados = s.usuarios.filter(u=>!termo || u.nome.toLowerCase().includes(termo) || u.email.toLowerCase().includes(termo) || u.depto.toLowerCase().includes(termo));
+return `
+<div class="cabecalho-pagina">
+<div><h2>Gestão de Usuários</h2><p class="breadcrumb">Portal Admin / <span class="ativo">Usuários</span></p></div>
+<button style="width:auto;padding:10px 18px;background:var(--vermelho);color:#fff;font-weight:700;font-size:12px;border-radius:8px;border:none" data-act="abrirModalUsuario">+ Novo Usuário</button>
+</div>
+<div class="painel">
+<div class="painel-cab">
+<div><h3>Usuários do Sistema</h3><p class="subt">Gerencie contas e níveis de acesso</p></div>
+<div class="busca-wrap"><span class="icone">🔍</span><input placeholder="Buscar usuário..." value="${esc(s.adminBusca)}" data-bind="adminBusca" data-rerender="1"></div>
+</div>
+<div style="overflow-x:auto">
+<table class="tab-adm">
+<thead><tr><th>Usuário</th><th>Nível</th><th>Setor</th><th>Status</th><th>Permissões</th><th>Ações</th></tr></thead>
+<tbody>
+${filtrados.length===0 ? `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--texto-sec)">Nenhum usuário encontrado.</td></tr>` : filtrados.map(u=>`
+<tr>
+<td><div class="usr-tab"><div class="avatar">${esc(u.iniciais)}</div><div><div style="font-weight:600">${esc(u.nome)}</div><div style="font-size:.72rem;color:var(--texto-sec)">${esc(u.email)}</div></div></div></td>
+<td><span class="badge-nivel">${esc(u.nivel)}</span></td>
+<td>${esc(u.depto)}</td>
+<td><span class="badge ${u.status==='ativo'?'badge-ativo':u.status==='pendente'?'badge-pendente':'badge-inativo'}">${u.status==='ativo'?'Ativo':u.status==='pendente'?'Pendente':'Inativo'}</span></td>
+<td><div style="display:flex;gap:4px;flex-wrap:wrap">
+${u.permissoes?.cadastroEquipamento?'<span class="badge-nivel" title="Cadastro de equipamento">📦 Equip.</span>':''}
+${u.permissoes?.emissaoOS?'<span class="badge-nivel" title="Emissão de Ordem de manutenção">📋 OS</span>':''}
+${u.permissoes?.solicitacaoCorretiva?'<span class="badge-nivel" title="Solicitação de manutenção corretiva">🔧 Corretiva</span>':''}
+${(!u.permissoes || (!u.permissoes.cadastroEquipamento && !u.permissoes.emissaoOS && !u.permissoes.solicitacaoCorretiva)) ? '<span style="font-size:.7rem;color:var(--texto-sec)">—</span>' : ''}
+</div></td>
+<td>
+<button class="acao-icone" title="Editar" data-act="abrirEditarUsuario" data-p1="${esc(u.email)}">✏️</button>
+<button class="acao-icone" title="Remover" data-act="confirmarRemoverUsuario" data-p1="${esc(u.email)}">🗑️</button>
+</td>
+</tr>
+`).join("")}
+</tbody>
+</table>
+</div>
+</div>
+`;
+},
+
+abrirModalUsuario() {
+this.set({
+adminModalAberto:true, usuarioEditandoEmail:null, usuarioModalErro:"",
+novoUsuario: {nome:"", email:"", nivel:"Operador", depto:"", status:"ativo", permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false}}
+});
+},
+
+abrirEditarUsuario(email) {
+const u = this.state.usuarios.find(x=>x.email===email);
+if (!u) return;
+this.set({
+adminModalAberto:true, usuarioEditandoEmail:email, usuarioModalErro:"",
+novoUsuario: { nome:u.nome, email:u.email, nivel:u.nivel, depto:u.depto, status:u.status,
+permissoes: { cadastroEquipamento: !!u.permissoes?.cadastroEquipamento, emissaoOS: !!u.permissoes?.emissaoOS, solicitacaoCorretiva: !!u.permissoes?.solicitacaoCorretiva } }
+});
+},
+
+fecharModalUsuario() { this.set({adminModalAberto:false, usuarioEditandoEmail:null, usuarioModalErro:""}); },
+
+toggleNovaPermissao(chave) {
+this.state.novoUsuario.permissoes[chave] = !this.state.novoUsuario.permissoes[chave];
+this.render();
+},
+
+confirmarRemoverUsuario(email) {
+const u = this.state.usuarios.find(x=>x.email===email);
+if (!u) return;
+this.set({ confirmDialog: {
+mensagem: `Tem certeza que deseja remover o usuário "${u.nome}"? Esta ação não poderá ser desfeita.`,
+acao: "removerUsuarioConfirmado", parametro: email
+}});
+},
+
+removerUsuarioConfirmado(email) {
+this.state.usuarios = this.state.usuarios.filter(x=>x.email!==email);
+this.set({ confirmDialog:null });
+},
+
+
+modalUsuario() {
+const n = this.state.novoUsuario;
+const editando = !!this.state.usuarioEditandoEmail;
+const setores = this.state.setores;
+const erro = this.state.usuarioModalErro;
+return `
+<div class="modal-overlay" data-close="adminModalAberto">
+<div class="modal">
+<div class="modal-cab"><h3>${editando ? "Editar Usuário" : "Novo Usuário"}</h3><button data-act="fecharModalUsuario">✕</button></div>
+<div class="modal-corpo">
+<div style="margin-bottom:16px"><label class="campo-lbl">Nome completo</label>
+<input class="campo-inp" value="${esc(n.nome)}" data-bind="novoUsuario.nome" placeholder="Informe o nome completo"></div>
+<div style="margin-bottom:16px"><label class="campo-lbl">E-mail</label>
+<input class="campo-inp" type="email" value="${esc(n.email)}" data-bind="novoUsuario.email" placeholder="usuario@cometa.com"></div>
+<div style="margin-bottom:16px"><label class="campo-lbl">Nível de acesso</label>
+<select class="campo-inp" data-bind="novoUsuario.nivel">
+<option ${n.nivel==='Administrador'?'selected':''}>Administrador</option>
+<option ${n.nivel==='Gestor de Manutenção'?'selected':''}>Gestor de Manutenção</option>
+<option ${n.nivel==='Operador'?'selected':''}>Operador</option>
+<option ${n.nivel==='Visualizador'?'selected':''}>Visualizador</option>
+</select></div>
+<div style="margin-bottom:16px"><label class="campo-lbl">Setor</label>
+<select class="campo-inp" data-bind="novoUsuario.depto">
+<option value="" ${!n.depto?'selected':''}>Selecione um setor...</option>
+${setores.map(st=>`<option ${n.depto===st?'selected':''}>${esc(st)}</option>`).join("")}
+${(n.depto && !setores.includes(n.depto)) ? `<option selected>${esc(n.depto)}</option>` : ""}
+</select>
+${setores.length===0 ? `<div style="font-size:.72rem;color:var(--texto-sec);margin-top:6px">Nenhum setor cadastrado ainda — vá em "Cadastro de Setor" no menu para criar um.</div>` : ""}
+</div>
+<div style="margin-bottom:16px"><label class="campo-lbl">Status</label>
+<select class="campo-inp" data-bind="novoUsuario.status">
+<option value="ativo" ${n.status==='ativo'?'selected':''}>Ativo</option>
+<option value="pendente" ${n.status==='pendente'?'selected':''}>Pendente</option>
+<option value="inativo" ${n.status==='inativo'?'selected':''}>Inativo</option>
+</select></div>
+<div>
+<label class="campo-lbl">Tipo de acesso (permissões)</label>
+<div style="display:flex;flex-direction:column;gap:8px;background:var(--fundo);border:1px solid var(--borda);border-radius:8px;padding:12px 14px">
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:.85rem" data-act="toggleNovaPermissao" data-p1="cadastroEquipamento">
+<input type="checkbox" ${n.permissoes.cadastroEquipamento?'checked':''} style="pointer-events:none;width:16px;height:16px"> 📦 Cadastro de equipamento
+</label>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:.85rem" data-act="toggleNovaPermissao" data-p1="emissaoOS">
+<input type="checkbox" ${n.permissoes.emissaoOS?'checked':''} style="pointer-events:none;width:16px;height:16px"> 📋 Emissão de Ordem de manutenção
+</label>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:.85rem" data-act="toggleNovaPermissao" data-p1="solicitacaoCorretiva">
+<input type="checkbox" ${n.permissoes.solicitacaoCorretiva?'checked':''} style="pointer-events:none;width:16px;height:16px"> 🔧 Solicitação de manutenção corretiva
+</label>
+</div>
+</div>
+</div>
+${erro ? `<div class="modal-erro">⚠ ${esc(erro)}</div>` : ""}
+<div class="modal-rodape">
+<button style="padding:10px 18px;border-radius:8px;border:1.5px solid var(--borda);background:#fff;font-size:.85rem" data-act="fecharModalUsuario">Cancelar</button>
+<button style="padding:10px 18px;border-radius:8px;border:none;background:var(--vermelho);color:#fff;font-weight:600;font-size:.85rem" data-act="salvarUsuarioAdmin">Salvar</button>
+</div>
+</div>
+</div>
+`;
+},
+
+salvarUsuarioAdmin() {
+const s = this.state;
+const n = s.novoUsuario;
+if (!n.nome.trim() || !n.email.trim()) { this.set({usuarioModalErro:"Preencha ao menos o nome e o e-mail."}); return; }
+const emailOriginal = s.usuarioEditandoEmail;
+const emailDuplicado = s.usuarios.some(u => u.email.toLowerCase()===n.email.trim().toLowerCase() && u.email!==emailOriginal);
+if (emailDuplicado) { this.set({usuarioModalErro:"Já existe um usuário com este e-mail."}); return; }
+
+const iniciais = n.nome.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+const registro = { iniciais, nome:n.nome.trim(), email:n.email.trim(), nivel:n.nivel, depto:n.depto||"—", status:n.status,
+permissoes: { cadastroEquipamento:!!n.permissoes.cadastroEquipamento, emissaoOS:!!n.permissoes.emissaoOS, solicitacaoCorretiva:!!n.permissoes.solicitacaoCorretiva } };
+
+if (emailOriginal) s.usuarios = s.usuarios.map(u => u.email===emailOriginal ? registro : u);
+else s.usuarios.push(registro);
+
+this.set({adminModalAberto:false, usuarioEditandoEmail:null, usuarioModalErro:""});
+},
+
+/* ============================= SETORES ============================= */
+paginaSetores(s) {
+const termo = s.setorBusca.toLowerCase();
+const filtrados = s.setores.filter(st=>!termo || st.toLowerCase().includes(termo));
+return `
+<div class="cabecalho-pagina">
+<div><h2>Cadastro de Setor</h2><p class="breadcrumb">Portal Admin / <span class="ativo">Setores</span></p></div>
+<button style="width:auto;padding:10px 18px;background:var(--vermelho);color:#fff;font-weight:700;font-size:12px;border-radius:8px;border:none" data-act="abrirModalSetor">+ Novo Setor</button>
+</div>
+<div class="painel">
+<div class="painel-cab">
+<div><h3>Setores da Empresa</h3><p class="subt">Ficam disponíveis para seleção no cadastro/edição de usuários</p></div>
+<div class="busca-wrap"><span class="icone">🔍</span><input placeholder="Buscar setor..." value="${esc(s.setorBusca)}" data-bind="setorBusca" data-rerender="1"></div>
+</div>
+<div style="overflow-x:auto">
+<table class="tab-adm">
+<thead><tr><th>Setor</th><th>Usuários vinculados</th><th>Ações</th></tr></thead>
+<tbody>
+${filtrados.length===0 ? `<tr><td colspan="3" style="text-align:center;padding:30px;color:var(--texto-sec)">Nenhum setor encontrado.</td></tr>` : filtrados.map(st=>{
+const qtd = s.usuarios.filter(u=>u.depto===st).length;
+return `<tr>
+<td style="font-weight:600">${esc(st)}</td>
+<td>${qtd} usuário(s)</td>
+<td>
+<button class="acao-icone" title="Editar" data-act="abrirEditarSetor" data-p1="${esc(st)}">✏️</button>
+<button class="acao-icone" title="Remover" data-act="confirmarRemoverSetor" data-p1="${esc(st)}">🗑️</button>
+</td>
+</tr>`;
+}).join("")}
+</tbody>
+</table>
+</div>
+</div>
+`;
+},
+
+abrirModalSetor() { this.set({ setorModalAberto:true, setorEditandoNome:null, setorModalErro:"", novoSetor:{nome:""} }); },
+abrirEditarSetor(nome) { this.set({ setorModalAberto:true, setorEditandoNome:nome, setorModalErro:"", novoSetor:{nome} }); },
+fecharModalSetor() { this.set({ setorModalAberto:false, setorEditandoNome:null, setorModalErro:"" }); },
+
+
+confirmarRemoverSetor(nome) {
+const qtd = this.state.usuarios.filter(u=>u.depto===nome).length;
+const msg = qtd>0
+? `O setor "${nome}" está vinculado a ${qtd} usuário(s). Remover o setor NÃO altera esses usuários, mas ele deixará de aparecer na lista para novos cadastros. Deseja continuar?`
+: `Tem certeza que deseja remover o setor "${nome}"?`;
+this.set({ confirmDialog: { mensagem: msg, acao:"removerSetorConfirmado", parametro: nome } });
+},
+
+removerSetorConfirmado(nome) {
+this.state.setores = this.state.setores.filter(st=>st!==nome);
+this.set({ confirmDialog:null });
+},
+
+modalSetor() {
+const editando = !!this.state.setorEditandoNome;
+const nome = this.state.novoSetor.nome;
+const erro = this.state.setorModalErro;
+return `
+<div class="modal-overlay" data-close="setorModalAberto">
+<div class="modal">
+<div class="modal-cab"><h3>${editando ? "Editar Setor" : "Novo Setor"}</h3><button data-act="fecharModalSetor">✕</button></div>
+<div class="modal-corpo">
+<label class="campo-lbl">Nome do Setor</label>
+<input class="campo-inp" value="${esc(nome)}" data-bind="novoSetor.nome" placeholder="Ex: Expedição">
+${editando ? `<div style="font-size:.72rem;color:var(--texto-sec);margin-top:8px">Renomear este setor atualiza automaticamente todos os usuários já vinculados a ele.</div>` : ""}
+</div>
+${erro ? `<div class="modal-erro">⚠ ${esc(erro)}</div>` : ""}
+<div class="modal-rodape">
+<button style="padding:10px 18px;border-radius:8px;border:1.5px solid var(--borda);background:#fff;font-size:.85rem" data-act="fecharModalSetor">Cancelar</button>
+<button style="padding:10px 18px;border-radius:8px;border:none;background:var(--vermelho);color:#fff;font-weight:600;font-size:.85rem" data-act="salvarSetor">Salvar</button>
+</div>
+</div>
+</div>
+`;
+},
+
+salvarSetor() {
+const s = this.state;
+const nomeNovo = s.novoSetor.nome.trim();
+if (!nomeNovo) { this.set({setorModalErro:"Informe o nome do setor."}); return; }
+const nomeOriginal = s.setorEditandoNome;
+const duplicado = s.setores.some(st => st.toLowerCase()===nomeNovo.toLowerCase() && st!==nomeOriginal);
+if (duplicado) { this.set({setorModalErro:"Já existe um setor com este nome."}); return; }
+
+if (nomeOriginal) {
+s.setores = s.setores.map(st => st===nomeOriginal ? nomeNovo : st);
+s.usuarios = s.usuarios.map(u => u.depto===nomeOriginal ? {...u, depto:nomeNovo} : u);
+} else {
+s.setores.push(nomeNovo);
+}
+this.set({ setorModalAberto:false, setorEditandoNome:null, setorModalErro:"" });
+},
+
+/* ============================= CONFIRMAÇÃO ============================= */
+modalConfirmacao() {
+const c = this.state.confirmDialog;
+return `
+<div class="modal-overlay" data-close="confirmDialog">
+<div class="modal" style="max-width:400px">
+<div class="modal-corpo" style="padding-top:26px;text-align:center">
+<div style="font-size:28px;margin-bottom:12px">⚠️</div>
+<div style="font-size:.88rem;color:var(--texto);line-height:1.55">${esc(c.mensagem)}</div>
+</div>
+<div class="modal-rodape" style="justify-content:center">
+<button style="padding:10px 20px;border-radius:8px;border:1.5px solid var(--borda);background:#fff;font-size:.85rem" data-act="fecharConfirmacao">Cancelar</button>
+<button style="padding:10px 20px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-weight:700;font-size:.85rem" data-act="executarConfirmacao">Confirmar</button>
+</div>
+</div>
+</div>
+`;
+},
+fecharConfirmacao() { this.set({ confirmDialog:null }); },
+executarConfirmacao() {
+const c = this.state.confirmDialog;
+if (!c) return;
+if (typeof this[c.acao] === "function") this[c.acao](c.parametro);
+},
+
+/* ============================= LOGS ============================= */
+paginaLogs(s) {
+return `
+<div class="cabecalho-pagina"><div><h2>Logs de Auditoria</h2><p class="breadcrumb">Portal Admin / <span class="ativo">Logs</span></p></div></div>
+<div class="painel"><div class="painel-cab"><div><h3>Eventos registrados pelo Sistema PCM</h3><p class="subt">Em produção, viria de uma API (ex: GET /api/auditoria)</p></div></div>
+<div style="padding:16px 20px">
+${s.logAuditoria.length===0 ? '<div style="color:var(--texto-sec);font-size:.85rem">Nenhum evento registrado ainda.</div>' :
+[...s.logAuditoria].reverse().map(l=>`<div class="log-item"><b>${esc(l.acao)}</b> — ${esc(l.desc)} (${esc(l.tag)})<br><span style="color:var(--texto-sec)">👤 ${esc(l.usuario)} (${esc(l.perfil)}) · ${esc(l.dataHora)}</span></div>`).join("")}
+</div>
+</div>
+`;
+},
+
+
+/* ============================= INDICADORES ============================= */
+paginaIndicadores() {
+const k = calcularIndicadores();
+return `
+<div class="cabecalho-pagina"><div><h2>Indicadores Gerenciais</h2><p class="breadcrumb">Portal Admin / <span class="ativo">Indicadores</span></p></div></div>
+
+<div class="aviso-mock">
+ℹ️ Os valores abaixo usam um conjunto de dados de exemplo para demonstrar exatamente como cada indicador é calculado.
+Em produção, este painel se conecta à API do Sistema PCM para calcular estes mesmos indicadores automaticamente.
+</div>
+
+<div class="secao-indicador"><h3>1. Indicadores de Performance PCM</h3></div>
+
+<div class="card-ind">
+<div class="card-ind-topo"><div><div class="card-ind-titulo">1.1 MTBF — Mean Time Between Failures (Tempo Médio Entre Falhas)</div></div></div>
+<div class="card-ind-formula">MTBF = Horas (ou dias) de operação ÷ Número de falhas</div>
+<div class="card-ind-texto">Um dos indicadores mais importantes para avaliar a <b>confiabilidade dos equipamentos</b>. Mede quanto tempo o equipamento permanece em operação antes de apresentar uma nova falha. Quanto <b>maior</b> o MTBF, melhor a confiabilidade.</div>
+<div class="card-ind-obs">📌 Observação: a análise é sempre relacionada ao código (TAG) do equipamento e à existência de indicação de intervenção corretiva.</div>
+<table class="mini-tab">
+<thead><tr><th>TAG</th><th>Equipamento</th><th>Dias em operação</th><th>Nº falhas</th><th>MTBF</th><th>Interv. corretiva?</th></tr></thead>
+<tbody>
+${k.mtbfLista.map(e=>`
+<tr>
+<td style="font-family:monospace;color:var(--vermelho);font-weight:600">${esc(e.tag)}</td>
+<td>${esc(e.desc)}</td>
+<td>${e.diasOperacao} dias</td>
+<td>${e.falhas}</td>
+<td style="font-weight:700">${e.mtbf} ${e.falhas===0?'dias':'dias/falha'}</td>
+<td>${e.corretiva ? '<span class="badge" style="background:#fef2f2;color:#dc2626">Sim</span>' : '<span class="badge st-ok">Não</span>'}</td>
+</tr>
+`).join("")}
+</tbody>
+</table>
+</div>
+
+<div class="card-ind">
+<div class="card-ind-topo">
+<div><div class="card-ind-titulo">1.2 MTTR — Mean Time To Repair (Tempo Médio de Reparo)</div></div>
+<div style="text-align:right"><div class="card-ind-valor" style="color:${k.mttr<=2?'#16a34a':k.mttr<=4?'#b45309':'#dc2626'}">${k.mttr}h</div><span class="card-ind-status ${k.mttr<=2?'st-ok':k.mttr<=4?'st-alerta':'st-critico'}">${k.mttr<=2?'Bom':k.mttr<=4?'Atenção':'Crítico'}</span></div>
+</div>
+<div class="card-ind-formula">MTTR = Tempo total de manutenção corretiva ÷ Número de reparos</div>
+<div class="card-ind-texto">Avalia a <b>rapidez da equipe de manutenção</b> na execução dos reparos. Quanto <b>menor</b> o MTTR, melhor a eficiência da manutenção.</div>
+<div class="card-ind-obs">📌 Observação: quando ocorrer indicação no MTBF, o tempo de manutenção é contado desde a criação da Ordem de Serviço até sua finalização (clique em "Concluída").</div>
+<div class="card-ind-meta">Cálculo do exemplo: ${MOCK_REPAROS.reduce((a,r)=>a+r.horas,0)}h totais ÷ ${MOCK_REPAROS.length} reparos = <b>${k.mttr}h</b> por reparo.</div>
+</div>
+
+<div class="secao-indicador"><h3>2. Indicadores — Planejamento × Executado</h3></div>
+
+<div class="card-ind">
+<div class="card-ind-topo">
+<div><div class="card-ind-titulo">2.1 Percentual de Manutenção Preventiva</div></div>
+<div style="text-align:right"><div class="card-ind-valor" style="color:${k.pctPreventiva>=70&&k.pctPreventiva<=90?'#16a34a':'#b45309'}">${k.pctPreventiva}%</div><span class="card-ind-status ${k.pctPreventiva>=70&&k.pctPreventiva<=90?'st-ok':'st-alerta'}">${k.pctPreventiva>=70&&k.pctPreventiva<=90?'Dentro da meta':'Fora da meta'}</span></div>
+</div>
+<div class="card-ind-formula">% Preventiva = Preventivas executadas ÷ Total de Ordens de Serviço × 100</div>
+<div class="card-ind-texto">Indica a participação das ordens de serviço preventivas (PP) em relação ao total de serviços executados.</div>
+<div class="card-ind-meta">🎯 Meta recomendada: <b>70% a 90%</b></div>
+</div>
+
+<div class="card-ind">
+<div class="card-ind-topo">
+<div><div class="card-ind-titulo">2.2 Percentual de Manutenção Corretiva</div></div>
+<div style="text-align:right"><div class="card-ind-valor" style="color:${k.pctCorretiva<20?'#16a34a':'#dc2626'}">${k.pctCorretiva}%</div><span class="card-ind-status ${k.pctCorretiva<20?'st-ok':'st-critico'}">${k.pctCorretiva<20?'Dentro da meta':'Acima do recomendado'}</span></div>
+</div>
+<div class="card-ind-formula">% Corretiva = Corretivas executadas ÷ Total de Ordens de Serviço × 100</div>
+<div class="card-ind-texto">Mede a participação das manutenções corretivas no total das intervenções.</div>
+<div class="card-ind-obs">📌 Observação: empresas com manutenção madura normalmente mantêm este índice <b>abaixo de 20%</b>.</div>
+<div class="card-ind-meta">🎯 Meta recomendada: abaixo de 20%</div>
+</div>
+
+<div class="card-ind">
+<div class="card-ind-topo">
+<div><div class="card-ind-titulo">2.3 Cumprimento do Plano Preventivo (Compliance)</div></div>
+<div style="text-align:right"><div class="card-ind-valor" style="color:${k.cumprimentoPlano>=95?'#16a34a':'#dc2626'}">${k.cumprimentoPlano}%</div><span class="card-ind-status ${k.cumprimentoPlano>=95?'st-ok':'st-critico'}">${k.cumprimentoPlano>=95?'Dentro da meta':'Abaixo da meta'}</span></div>
+</div>
+<div class="card-ind-formula">Compliance = Preventivas concluídas no prazo ÷ Total de preventivas concluídas × 100</div>
+<div class="card-ind-texto">Também conhecido como <i>Compliance da Manutenção Preventiva</i>. Avalia o percentual de manutenções preventivas executadas <b>dentro do prazo planejado</b>.</div>
+<div class="card-ind-meta">🎯 Meta recomendada: superior a 95%</div>
+</div>
+
+<div class="secao-indicador"><h3>3. Backlog de Manutenção</h3></div>
+
+<div class="card-ind">
+<div class="card-ind-topo">
+<div><div class="card-ind-titulo">Backlog de Manutenção</div></div>
+<div style="text-align:right"><div class="card-ind-valor" style="color:${k.backlogSemanas>=1&&k.backlogSemanas<=8?'#16a34a':'#dc2626'}">${k.backlogSemanas} sem.</div><span class="card-ind-status ${k.backlogSemanas>=1&&k.backlogSemanas<=8?'st-ok':'st-critico'}">${k.backlogSemanas>=1&&k.backlogSemanas<=8?'Dentro da faixa':'Fora da faixa'}</span></div>
+</div>
+<div class="card-ind-texto">Representa a quantidade de trabalho pendente da equipe de manutenção. Pode ser medido em horas, dias ou semanas. Atualmente há <b>${k.abertasCount} ordem(ns) em aberto</b>, totalizando ${k.backlogSemanas} semanas de trabalho pendente estimado.</div>
+<div class="card-ind-meta">🎯 Faixa recomendada: entre 1 e 8 semanas de backlog planejado.</div>
+</div>
+
+<div class="secao-indicador"><h3>4. Indicadores de Confiabilidade</h3></div>
+
+<div class="card-ind">
+<div class="card-ind-topo">
+<div><div class="card-ind-titulo">4.1 Frequência de Falhas</div></div>
+<div style="text-align:right"><div class="card-ind-valor" style="color:#dc2626">${k.totalFalhas}</div><span class="card-ind-status st-info">últimos 6 meses</span></div>
+</div>
+<div class="card-ind-texto">Mede a quantidade de falhas ocorridas em determinado período. Permite identificar equipamentos críticos e priorizar ações de melhoria.</div>
+<div class="card-ind-obs">📌 Observação: computada a partir da mesma indicação usada no MTBF (nº de falhas por equipamento).</div>
+</div>
+
+<div class="secao-indicador"><h3>5. Índice de Reincidência</h3></div>
+
+<div class="card-ind">
+<div class="card-ind-topo">
+<div><div class="card-ind-titulo">Índice de Reincidência</div></div>
+<div style="text-align:right"><div class="card-ind-valor" style="color:${k.indiceReincidencia<=20?'#16a34a':'#dc2626'}">${k.indiceReincidencia}%</div><span class="card-ind-status ${k.indiceReincidencia<=20?'st-ok':'st-critico'}">${k.equipReincidentes} de ${k.totalEquip} equip.</span></div>
+</div>
+<div class="card-ind-texto">Avalia a repetição de falhas em um mesmo equipamento. Quanto <b>menor</b> o índice, maior a eficácia das ações corretivas.</div>
+<div class="card-ind-obs">📌 Observação: quando ocorrer indicação no MTBF com período menor que 60 dias entre falhas, o equipamento é incluído no índice de reincidência.</div>
+</div>
+`;
+},
+};
+
+
+const root = document.getElementById("root");
+
+root.addEventListener("click", function(ev){
+const overlay = ev.target.closest(".modal-overlay");
+if (overlay && ev.target === overlay) {
+const key = overlay.getAttribute("data-close");
+if (key) {
+App.state[key] = (key === "confirmDialog") ? null : false;
+App.state.usuarioEditandoEmail = null;
+App.state.setorEditandoNome = null;
+App.render();
+}
+return;
+}
+const el = ev.target.closest("[data-act]");
+if (!el) return;
+ev.preventDefault();
+const act = el.getAttribute("data-act");
+const p1 = el.getAttribute("data-p1");
+if (typeof App[act] === "function") App[act](p1);
+});
+
+root.addEventListener("input", function(ev){
+const el = ev.target;
+if (el.hasAttribute("data-bind")) {
+setPath(App.state, el.getAttribute("data-bind"), el.value);
+if (el.hasAttribute("data-rerender")) App.render();
+}
+});
+
+root.addEventListener("change", function(ev){
+const el = ev.target;
+if (el.tagName === "SELECT" && el.hasAttribute("data-bind")) {
+setPath(App.state, el.getAttribute("data-bind"), el.value);
+App.render();
+}
+});
+
+App.render();
+</script>
+</body>
+</html>
