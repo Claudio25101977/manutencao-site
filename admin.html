@@ -184,7 +184,7 @@ return { mtbfLista, mttr, pctPreventiva, pctCorretiva, cumprimentoPlano, backlog
 }
 
 
-const App = {
+const LS_USUARIOS = "pcmAdmin_usuarios"; const LS_SETORES = "pcmAdmin_setores"; const LS_LOGS = "pcmAdmin_logAuditoria"; const App = {
 state: {
 usuarioLogado: lerParamsUsuario(),
 adminSecao: "dashboard",
@@ -217,7 +217,7 @@ logAuditoria: [
 ],
 },
 
-set(patch) { Object.assign(this.state, patch); this.render(); },
+set(patch) { Object.assign(this.state, patch); this.persistir(); this.render(); }, persistir() { try { localStorage.setItem(LS_USUARIOS, JSON.stringify(this.state.usuarios)); localStorage.setItem(LS_SETORES, JSON.stringify(this.state.setores)); localStorage.setItem(LS_LOGS, JSON.stringify(this.state.logAuditoria)); } catch (e) { console.error("Erro ao persistir dados no localStorage:", e); } },
 
 render() {
 const s = this.state;
@@ -746,7 +746,6 @@ App.render();
 }
 });
 
-App.render();
-</script>
+(function(){ try { const u = localStorage.getItem(LS_USUARIOS); if (u) { const p = JSON.parse(u); if (Array.isArray(p)) App.state.usuarios = p; } } catch(e) { console.error("Erro ao carregar usuarios do localStorage:", e); } try { const st = localStorage.getItem(LS_SETORES); if (st) { const p = JSON.parse(st); if (Array.isArray(p)) App.state.setores = p; } } catch(e) { console.error("Erro ao carregar setores do localStorage:", e); } try { const lg = localStorage.getItem(LS_LOGS); if (lg) { const p = JSON.parse(lg); if (Array.isArray(p)) App.state.logAuditoria = p; } } catch(e) { console.error("Erro ao carregar logAuditoria do localStorage:", e); } })(); App.render();</script>
 </body>
 </html>
