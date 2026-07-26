@@ -403,7 +403,7 @@ return `
 ${setores.map(st=>`<option ${n.depto===st?'selected':''}>${esc(st)}</option>`).join("")}
 ${(n.depto && !setores.includes(n.depto)) ? `<option selected>${esc(n.depto)}</option>` : ""}
 </select>
-${setores.length===0 ? `<div style="font-size:.72rem;color:var(--texto-sec);margin-top:6px">Nenhum setor cadastrado ainda — vá em "Cadastro de Setor" no menu para criar um.</div>` : ""}
+${setores.length===0 ? `<div style="font-size:.72rem;color:var(--texto-sec);margin-top:6px">Nenhum setor cadastrado ainda.</div>` : ""}
 </div>
 <div style="margin-bottom:16px"><label class="campo-lbl">Status</label>
 <select class="campo-inp" data-bind="novoUsuario.status">
