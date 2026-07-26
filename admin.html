@@ -203,14 +203,9 @@ adminBusca:"",
 adminModalAberto:false,
 usuarioEditandoEmail: null,
 usuarioModalErro:"",
-novoUsuario: {nome:"", email:"", nivel:"Operador", depto:"", status:"ativo", permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false}},
+novoUsuario: {nome:"", email:"", nivel:"Operador", depto:"", status:"ativo", permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false, aprovacaoOS:false}},
 
 setores: ["TI", "Manutenção", "Offset", "Acabamento", "Qualidade"],
-setorBusca: "",
-setorModalAberto: false,
-setorEditandoNome: null,
-setorModalErro: "",
-novoSetor: { nome: "" },
 
 confirmDialog: null,
 sidebarAberta: false,
@@ -227,7 +222,6 @@ const s = this.state;
 const ITENS = [
 {id:"dashboard", label:"Dashboard"},
 {id:"usuarios", label:"Usuários"},
-{id:"setores", label:"Cadastro de Setor"},
 {id:"logs", label:"Logs de Auditoria"},
 {id:"indicadores", label:"Indicadores Gerenciais"},
 ];
@@ -266,7 +260,6 @@ ${ITENS.map(i=>`<button class="menu-item ${s.adminSecao===i.id?'ativo':''}" data
 </nav>
 <main class="conteudo">${corpo}</main>
 ${s.adminModalAberto ? this.modalUsuario() : ""}
-${s.setorModalAberto ? this.modalSetor() : ""}
 ${s.confirmDialog ? this.modalConfirmacao() : ""}
 `;
 
@@ -276,7 +269,6 @@ document.getElementById("root").innerHTML = html;
 renderCorpo(s) {
 if (s.adminSecao === "dashboard") return this.paginaDashboard(s);
 if (s.adminSecao === "usuarios") return this.paginaUsuarios(s);
-if (s.adminSecao === "setores") return this.paginaSetores(s);
 if (s.adminSecao === "logs") return this.paginaLogs(s);
 if (s.adminSecao === "indicadores") return this.paginaIndicadores();
 return "";
@@ -348,7 +340,7 @@ ${(!u.permissoes || (!u.permissoes.cadastroEquipamento && !u.permissoes.emissaoO
 abrirModalUsuario() {
 this.set({
 adminModalAberto:true, usuarioEditandoEmail:null, usuarioModalErro:"",
-novoUsuario: {nome:"", email:"", nivel:"Operador", depto:"", status:"ativo", permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false}}
+novoUsuario: {nome:"", email:"", nivel:"Operador", depto:"", status:"ativo", permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false, aprovacaoOS:false}}
 });
 },
 
@@ -358,7 +350,7 @@ if (!u) return;
 this.set({
 adminModalAberto:true, usuarioEditandoEmail:email, usuarioModalErro:"",
 novoUsuario: { nome:u.nome, email:u.email, nivel:u.nivel, depto:u.depto, status:u.status,
-permissoes: { cadastroEquipamento: !!u.permissoes?.cadastroEquipamento, emissaoOS: !!u.permissoes?.emissaoOS, solicitacaoCorretiva: !!u.permissoes?.solicitacaoCorretiva } }
+permissoes: { cadastroEquipamento: !!u.permissoes?.cadastroEquipamento, emissaoOS: !!u.permissoes?.emissaoOS, solicitacaoCorretiva: !!u.permissoes?.solicitacaoCorretiva, aprovacaoOS: !!u.permissoes?.aprovacaoOS } }
 });
 },
 
@@ -431,7 +423,9 @@ ${setores.length===0 ? `<div style="font-size:.72rem;color:var(--texto-sec);marg
 <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:.85rem" data-act="toggleNovaPermissao" data-p1="solicitacaoCorretiva">
 <input type="checkbox" ${n.permissoes.solicitacaoCorretiva?'checked':''} style="pointer-events:none;width:16px;height:16px"> 🔧 Solicitação de manutenção corretiva
 </label>
-</div>
+<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:.85rem" data-act="toggleNovaPermissao" data-p1="aprovacaoOS">
+<input type="checkbox" ${n.permissoes.aprovacaoOS?'checked':''} style="pointer-events:none;width:16px;height:16px"> ✅ Aprovação de emissão de ordem de manutenção
+</label></div>
 </div>
 </div>
 ${erro ? `<div class="modal-erro">⚠ ${esc(erro)}</div>` : ""}
@@ -454,106 +448,12 @@ if (emailDuplicado) { this.set({usuarioModalErro:"Já existe um usuário com est
 
 const iniciais = n.nome.trim().split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
 const registro = { iniciais, nome:n.nome.trim(), email:n.email.trim(), nivel:n.nivel, depto:n.depto||"—", status:n.status,
-permissoes: { cadastroEquipamento:!!n.permissoes.cadastroEquipamento, emissaoOS:!!n.permissoes.emissaoOS, solicitacaoCorretiva:!!n.permissoes.solicitacaoCorretiva } };
-
+permissoes: { cadastroEquipamento:!!n.permissoes.cadastroEquipamento, emissaoOS:!!n.permissoes.emissaoOS, solicitacaoCorretiva:!!n.permissoes.solicitacaoCorretiva, aprovacaoOS:!!n.permissoes.aprovacaoOS } };
+  
 if (emailOriginal) s.usuarios = s.usuarios.map(u => u.email===emailOriginal ? registro : u);
 else s.usuarios.push(registro);
 
 this.set({adminModalAberto:false, usuarioEditandoEmail:null, usuarioModalErro:""});
-},
-
-/* ============================= SETORES ============================= */
-paginaSetores(s) {
-const termo = s.setorBusca.toLowerCase();
-const filtrados = s.setores.filter(st=>!termo || st.toLowerCase().includes(termo));
-return `
-<div class="cabecalho-pagina">
-<div><h2>Cadastro de Setor</h2><p class="breadcrumb">Portal Admin / <span class="ativo">Setores</span></p></div>
-<button style="width:auto;padding:10px 18px;background:var(--vermelho);color:#fff;font-weight:700;font-size:12px;border-radius:8px;border:none" data-act="abrirModalSetor">+ Novo Setor</button>
-</div>
-<div class="painel">
-<div class="painel-cab">
-<div><h3>Setores da Empresa</h3><p class="subt">Ficam disponíveis para seleção no cadastro/edição de usuários</p></div>
-<div class="busca-wrap"><span class="icone">🔍</span><input placeholder="Buscar setor..." value="${esc(s.setorBusca)}" data-bind="setorBusca" data-rerender="1"></div>
-</div>
-<div style="overflow-x:auto">
-<table class="tab-adm">
-<thead><tr><th>Setor</th><th>Usuários vinculados</th><th>Ações</th></tr></thead>
-<tbody>
-${filtrados.length===0 ? `<tr><td colspan="3" style="text-align:center;padding:30px;color:var(--texto-sec)">Nenhum setor encontrado.</td></tr>` : filtrados.map(st=>{
-const qtd = s.usuarios.filter(u=>u.depto===st).length;
-return `<tr>
-<td style="font-weight:600">${esc(st)}</td>
-<td>${qtd} usuário(s)</td>
-<td>
-<button class="acao-icone" title="Editar" data-act="abrirEditarSetor" data-p1="${esc(st)}">✏️</button>
-<button class="acao-icone" title="Remover" data-act="confirmarRemoverSetor" data-p1="${esc(st)}">🗑️</button>
-</td>
-</tr>`;
-}).join("")}
-</tbody>
-</table>
-</div>
-</div>
-`;
-},
-
-abrirModalSetor() { this.set({ setorModalAberto:true, setorEditandoNome:null, setorModalErro:"", novoSetor:{nome:""} }); },
-abrirEditarSetor(nome) { this.set({ setorModalAberto:true, setorEditandoNome:nome, setorModalErro:"", novoSetor:{nome} }); },
-fecharModalSetor() { this.set({ setorModalAberto:false, setorEditandoNome:null, setorModalErro:"" }); },
-
-
-confirmarRemoverSetor(nome) {
-const qtd = this.state.usuarios.filter(u=>u.depto===nome).length;
-const msg = qtd>0
-? `O setor "${nome}" está vinculado a ${qtd} usuário(s). Remover o setor NÃO altera esses usuários, mas ele deixará de aparecer na lista para novos cadastros. Deseja continuar?`
-: `Tem certeza que deseja remover o setor "${nome}"?`;
-this.set({ confirmDialog: { mensagem: msg, acao:"removerSetorConfirmado", parametro: nome } });
-},
-
-removerSetorConfirmado(nome) {
-this.state.setores = this.state.setores.filter(st=>st!==nome);
-this.set({ confirmDialog:null });
-},
-
-modalSetor() {
-const editando = !!this.state.setorEditandoNome;
-const nome = this.state.novoSetor.nome;
-const erro = this.state.setorModalErro;
-return `
-<div class="modal-overlay" data-close="setorModalAberto">
-<div class="modal">
-<div class="modal-cab"><h3>${editando ? "Editar Setor" : "Novo Setor"}</h3><button data-act="fecharModalSetor">✕</button></div>
-<div class="modal-corpo">
-<label class="campo-lbl">Nome do Setor</label>
-<input class="campo-inp" value="${esc(nome)}" data-bind="novoSetor.nome" placeholder="Ex: Expedição">
-${editando ? `<div style="font-size:.72rem;color:var(--texto-sec);margin-top:8px">Renomear este setor atualiza automaticamente todos os usuários já vinculados a ele.</div>` : ""}
-</div>
-${erro ? `<div class="modal-erro">⚠ ${esc(erro)}</div>` : ""}
-<div class="modal-rodape">
-<button style="padding:10px 18px;border-radius:8px;border:1.5px solid var(--borda);background:#fff;font-size:.85rem" data-act="fecharModalSetor">Cancelar</button>
-<button style="padding:10px 18px;border-radius:8px;border:none;background:var(--vermelho);color:#fff;font-weight:600;font-size:.85rem" data-act="salvarSetor">Salvar</button>
-</div>
-</div>
-</div>
-`;
-},
-
-salvarSetor() {
-const s = this.state;
-const nomeNovo = s.novoSetor.nome.trim();
-if (!nomeNovo) { this.set({setorModalErro:"Informe o nome do setor."}); return; }
-const nomeOriginal = s.setorEditandoNome;
-const duplicado = s.setores.some(st => st.toLowerCase()===nomeNovo.toLowerCase() && st!==nomeOriginal);
-if (duplicado) { this.set({setorModalErro:"Já existe um setor com este nome."}); return; }
-
-if (nomeOriginal) {
-s.setores = s.setores.map(st => st===nomeOriginal ? nomeNovo : st);
-s.usuarios = s.usuarios.map(u => u.depto===nomeOriginal ? {...u, depto:nomeNovo} : u);
-} else {
-s.setores.push(nomeNovo);
-}
-this.set({ setorModalAberto:false, setorEditandoNome:null, setorModalErro:"" });
 },
 
 /* ============================= CONFIRMAÇÃO ============================= */
