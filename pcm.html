@@ -76,8 +76,8 @@ perfil: params.get("perfil") || "Operador",
 };
 }
 
-const MAQUINAS = ["ABG","CD","Coladeira 10","Coladeira 20","Coladeira Eureka","Corte Vinco - 03","Corte Vinco Automática","CVA Hot e relevo","Desfolhadeira","Dobradeira","Embalagem 1","Embalagem 2","Gallus","Guilhotina Recorte (INA1)","Guilhotina Recorte (INA3)","Ibirama - Recorte (Baldo)","MA 330","Mark Andy 330","New Foil","Nilpeter 250","Nilpeter 420","Rotoflex 01","Rotoflex 02","Rotoflex 03"];
-const RESPONSAVEIS = ["Mauro Ledur","Soli Rodrigues","Alexandre Pereira","Anderson Lima","Andre Martins","Carlos Eduardo","Daniel Ribeiro","Eduardo Barros","Felipe Araujo","Fernando Correia","Gabriel Moreira","Guilherme Borges","Henrique Ramos","Leonardo Batista","Lucas Andrade","Marcelo Queiroz","Marcos Vinicius","Mateus Coelho","Rafael Sousa","Rodrigo Leal","Thiago Carvalho"];
+const MAQUINAS = [];
+const RESPONSAVEIS = [];
 
 const EST = {
 PP: {label:"PP — Preventiva", color:"#2563eb", bg:"#eff6ff"},
@@ -105,7 +105,7 @@ B: "Equipamento de criticidade média: recomenda-se Inspeção de Rotina (PIR) p
 C: "Equipamento de criticidade baixa: ainda assim, recomenda-se Inspeção de Rotina (PIR), Lubrificação (PL) periódica e Manutenção Autônoma (MA) pelo operador, garantindo cuidados básicos sem exigir estratégias mais intensivas.",
 };
 
-const SETORES = ["TI", "Manutenção", "Offset", "Acabamento", "Qualidade"];
+const SETORES = [];
 
 const PRIORIDADES_SC = {
 "Imediato": { desc:"Realizar neste exato momento.", color:"#CC1B1B", bg:"rgba(204,27,27,.08)" },
@@ -144,19 +144,7 @@ return matriz[m.id] !== undefined;
 function calcClasse(c) { return c>200?"A":c>=50?"B":"C"; }
 
 function equipamentosIniciais() {
-return [
-{desc:"Entrada do papel",tag:"CD001.1",cod:"",criTotal:247,criClasse:"A",prazoD:90,estrategias:["PP","PIR"],maquina:"CD",ultimaManutencao:"2026-03-05",naoSeiData:false},
-{desc:"Margeador",tag:"CD001.1.1",cod:"",criTotal:247,criClasse:"A",prazoD:30,estrategias:["PP","PIR"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
-{desc:"Apalpador",tag:"CD001.1.2",cod:"C5.028.075F",criTotal:237,criClasse:"A",prazoD:60,estrategias:["PP"],maquina:"CD",ultimaManutencao:"2026-04-04",naoSeiData:false},
-{desc:"Arco guia",tag:"CD001.1.1.1",cod:"L2.020.207",criTotal:114,criClasse:"B",prazoD:90,estrategias:["PP","MA"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
-{desc:"Esquadro",tag:"CD001.1.2b",cod:"",criTotal:167,criClasse:"B",prazoD:30,estrategias:["PP","MA"],maquina:"CD",ultimaManutencao:"2026-05-04",naoSeiData:false},
-{desc:"Correia dentada de tracao",tag:"CD001.1.2.1",cod:"",criTotal:247,criClasse:"A",prazoD:90,estrategias:["PP","PD"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
-{desc:"Motor Tinteiro",tag:"CD001.2.1",cod:"L2.105.1051",criTotal:110,criClasse:"B",prazoD:90,estrategias:["PP","PD"],maquina:"CD",ultimaManutencao:"2026-03-05",naoSeiData:false},
-{desc:"Rolo tinta chapa 1",tag:"CD001.2.2",cod:"902902",criTotal:167,criClasse:"B",prazoD:120,estrategias:["PP","PL"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
-{desc:"Motor principal",tag:"CD001.3.1.4",cod:"M4.101.2003",criTotal:150,criClasse:"B",prazoD:150,estrategias:["PP","PD","PL"],maquina:"CD",ultimaManutencao:"2026-01-04",naoSeiData:false},
-{desc:"Gaita entrada (Fole)",tag:"CD001.1.2.2",cod:"L2.072.324",criTotal:11,criClasse:"C",prazoD:90,estrategias:["PIR"],maquina:"CD",ultimaManutencao:"",naoSeiData:true},
-{desc:"Rolo de transferencia",tag:"CD001.2.6",cod:"902910",criTotal:167,criClasse:"B",prazoD:60,estrategias:["PP","PIR"],maquina:"CD",ultimaManutencao:"2026-04-04",naoSeiData:false},
-].map(e=>{
+return [].map(e=>{
 const ref = e.naoSeiData ? HOJE : new Date(e.ultimaManutencao);
 const dataIntervencao = addDias(ref, e.prazoD);
 return {...e, setor:"Offset", dataRef:ref, dataIntervencao, diasRestantes:diffDias(dataIntervencao), ativo:true};
