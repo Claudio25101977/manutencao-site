@@ -139,31 +139,9 @@ const params = new URLSearchParams(window.location.search);
 return { nome: params.get("nome") || "Ana Silva", perfil: params.get("perfil") || "Administrador" };
 }
 
-const MOCK_MTBF = [
-{ tag:"CD001.1", desc:"Entrada do papel", diasOperacao:180, falhas:0, corretiva:false },
-{ tag:"CD001.1.2", desc:"Apalpador", diasOperacao:200, falhas:0, corretiva:false },
-{ tag:"CD001.2.1", desc:"Motor Tinteiro", diasOperacao:90, falhas:2, corretiva:true },
-{ tag:"CD001.3.1.4", desc:"Motor principal", diasOperacao:120, falhas:1, corretiva:true },
-{ tag:"CD001.2.2", desc:"Rolo tinta chapa 1", diasOperacao:60, falhas:4, corretiva:true },
-];
-const MOCK_REPAROS = [
-{tag:"CD001.2.1", horas:2.5}, {tag:"CD001.2.1", horas:1.5},
-{tag:"CD001.3.1.4", horas:4},
-{tag:"CD001.2.2", horas:1}, {tag:"CD001.2.2", horas:2}, {tag:"CD001.2.2", horas:1.5}, {tag:"CD001.2.2", horas:3},
-];
-const MOCK_ORDENS = [
-{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
-{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
-{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
-{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
-{tipo:"Preventiva", status:"Concluida", dentroPrazo:true}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:true},
-{tipo:"Preventiva", status:"Concluida", dentroPrazo:false}, {tipo:"Preventiva", status:"Concluida", dentroPrazo:false},
-{tipo:"Corretiva", status:"Concluida", dentroPrazo:null}, {tipo:"Corretiva", status:"Concluida", dentroPrazo:null},
-{tipo:"Corretiva", status:"Concluida", dentroPrazo:null},
-{tipo:"Preventiva", status:"Aberta", semanasPendente:2},
-{tipo:"Preventiva", status:"Em Andamento", semanasPendente:4},
-{tipo:"Corretiva", status:"Aberta", semanasPendente:1},
-];
+const MOCK_MTBF = [];
+const MOCK_REPAROS = [];
+const MOCK_ORDENS = [];
 
 function calcularIndicadores() {
 const mtbfLista = MOCK_MTBF.map(e => ({ ...e, mtbf: e.falhas===0 ? e.diasOperacao : +(e.diasOperacao / e.falhas).toFixed(1) }));
@@ -192,27 +170,19 @@ state: {
 usuarioLogado: lerParamsUsuario(),
 adminSecao: "dashboard",
 
-usuarios: [
-{ iniciais:'RC', nome:'Rafael Costa', email:'rafael.costa@cometa.com', nivel:'Administrador', depto:'TI', status:'ativo', permissoes:{cadastroEquipamento:true, emissaoOS:true, solicitacaoCorretiva:true} },
-{ iniciais:'MF', nome:'Mariana Ferreira', email:'mariana.f@cometa.com', nivel:'Gestor de Manutenção', depto:'Manutenção', status:'ativo', permissoes:{cadastroEquipamento:true, emissaoOS:true, solicitacaoCorretiva:true} },
-{ iniciais:'ML', nome:'Mauro Ledur', email:'mauro.ledur@cometa.com', nivel:'Operador', depto:'Offset', status:'ativo', permissoes:{cadastroEquipamento:false, emissaoOS:true, solicitacaoCorretiva:true} },
-{ iniciais:'CL', nome:'Camila Lima', email:'camila.lima@cometa.com', nivel:'Operador', depto:'Acabamento', status:'pendente', permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:true} },
-{ iniciais:'BS', nome:'Bruno Santos', email:'bruno.santos@cometa.com', nivel:'Visualizador', depto:'Qualidade', status:'inativo', permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false} },
-],
+usuarios: [],
 adminBusca:"",
 adminModalAberto:false,
 usuarioEditandoEmail: null,
 usuarioModalErro:"",
 novoUsuario: {nome:"", email:"", nivel:"Operador", depto:"", status:"ativo", permissoes:{cadastroEquipamento:false, emissaoOS:false, solicitacaoCorretiva:false, aprovacaoOS:false}},
 
-setores: ["TI", "Manutenção", "Offset", "Acabamento", "Qualidade"],
+setores: [],
 
 confirmDialog: null,
 sidebarAberta: false,
 
-logAuditoria: [
-{ acao:"EXCLUSAO_EQUIPAMENTO", tag:"CD001.1.2.2", desc:"Gaita entrada (Fole)", usuario:"Mauro Ledur", perfil:"Gestor de Manutenção", dataHora:"18/07/2026 14:32:10" },
-],
+logAuditoria: [],
 },
 
 set(patch) { Object.assign(this.state, patch); this.persistir(); this.render(); }, persistir() { try { localStorage.setItem(LS_USUARIOS, JSON.stringify(this.state.usuarios)); localStorage.setItem(LS_SETORES, JSON.stringify(this.state.setores)); localStorage.setItem(LS_LOGS, JSON.stringify(this.state.logAuditoria)); } catch (e) { console.error("Erro ao persistir dados no localStorage:", e); } },
