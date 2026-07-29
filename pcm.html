@@ -176,7 +176,7 @@ scErros: {},
 setores: SETORES.slice(),
   maquinas: MAQUINAS.slice(),
   setorBusca: "", setorModalAberto: false, setorEditando: null, setorModalErro: "", novoSetor: {nome:""},
-  maquinaBusca: "", maquinaModalAberto: false, maquinaEditando: null, maquinaModalErro: "", novaMaquina: {nome:""},
+  maquinaBusca: "", maquinaModalAberto: false, maquinaEditando: null, maquinaModalErro: "", novaMaquina: {nome:"", setor:""},
   removerCadastro: null,
 },
 
@@ -484,25 +484,23 @@ fecharFormEquipamento() { this.set({ eqFormAberto:null, eqFormDados:null, eqForm
   pcmMaquinas() {
     const s = this.state;
     const termo = s.maquinaBusca.toLowerCase();
-    const filtrados = s.maquinas.filter(m=>!termo || m.toLowerCase().includes(termo));
+    const filtrados = s.maquinas.filter(m=>!termo || m.nome.toLowerCase().includes(termo));
     return `
     <div style="background:#fff;border:1px solid var(--borda);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
     <div><div style="font-weight:700;font-size:14px">🔩 Cadastro de Máquinas</div><div style="font-size:11px;color:var(--texto-sec);margin-top:2px">Máquinas disponíveis para vinculação de equipamentos</div></div>
-    <button data-act="abrirModalMaquina" style="padding:8px 16px;background:#CC1B1B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">+ Nova Máquina</button>
-    </div>
-    <input value="${esc(s.maquinaBusca)}" data-bind="maquinaBusca" data-rerender="1" placeholder="Buscar máquina..." style="padding:8px 12px;border-radius:8px;border:1px solid var(--borda);font-size:12px;width:100%;max-width:300px;margin-bottom:14px;box-sizing:border-box">
+    <button data-act="abrirModalMaquina" style="padding:8px 16px;background:#CC1B1B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">+ Nova Máquina</button></div>${s.setores.length===0 ? `<div style="background:#fffbeb;border:1px solid #fde047;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11.5px;color:#854d0e">⚠ Nenhum setor cadastrado. Cadastre um setor em "Cadastro de Setor" antes de cadastrar uma máquina.</div>` : ""}    <input value="${esc(s.maquinaBusca)}" data-bind="maquinaBusca" data-rerender="1" placeholder="Buscar máquina..." style="padding:8px 12px;border-radius:8px;border:1px solid var(--borda);font-size:12px;width:100%;max-width:300px;margin-bottom:14px;box-sizing:border-box">
     <table style="width:100%;border-collapse:collapse;font-size:11px">
     <thead><tr style="background:var(--fundo);border-bottom:2px solid var(--borda)">
-    <th style="text-align:left;padding:9px 12px">Máquina</th><th style="text-align:left;padding:9px 12px">Equipamentos vinculados</th><th style="padding:9px 12px;text-align:right">Ações</th>
+    <th style="text-align:left;padding:9px 12px">Máquina</th><th style="text-align:left;padding:9px 12px">Setor</th><th style="text-align:left;padding:9px 12px">Equipamentos vinculados</th><th style="padding:9px 12px;text-align:right">Ações</th>
     </tr></thead>
     <tbody>
-    ${filtrados.length===0 ? `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--texto-sec)">Nenhuma máquina encontrada.</td></tr>` : filtrados.map(m=>`<tr style="border-bottom:1px solid var(--borda)">
-    <td style="padding:9px 12px;font-weight:600">${esc(m)}</td>
-    <td style="padding:9px 12px">${s.equipamentos.filter(e=>e.maquina===m).length}</td>
+    ${filtrados.length===0 ? `<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--texto-sec)">Nenhuma máquina encontrada.</td></tr>` : filtrados.map(m=>`<tr style="border-bottom:1px solid var(--borda)">
+    <td style="padding:9px 12px;font-weight:600">${esc(m.nome)}</td><td style="padding:9px 12px">${esc(m.setor||"—")}</td>
+    <td style="padding:9px 12px">${s.equipamentos.filter(e=>e.maquina===m.nome).length}</td>
     <td style="padding:9px 12px;text-align:right">
-    <button data-act="abrirEditarMaquina" data-p1="${esc(m)}" title="Editar" style="background:none;border:none;cursor:pointer;font-size:13px;padding:5px">✏️</button>
-    <button data-act="confirmarRemoverMaquina" data-p1="${esc(m)}" title="Remover" style="background:none;border:none;cursor:pointer;font-size:13px;padding:5px">🗑️</button>
+    <button data-act="abrirEditarMaquina" data-p1="${esc(m.nome)}" title="Editar" style="background:none;border:none;cursor:pointer;font-size:13px;padding:5px">✏️</button>
+    <button data-act="confirmarRemoverMaquina" data-p1="${esc(m.nome)}" title="Remover" style="background:none;border:none;cursor:pointer;font-size:13px;padding:5px">🗑️</button>
     </td>
     </tr>`).join("")}
     </tbody>
@@ -516,7 +514,7 @@ fecharFormEquipamento() { this.set({ eqFormAberto:null, eqFormDados:null, eqForm
   modalMaquina() {
     const s = this.state;
     const editando = !!s.maquinaEditando;
-    const nome = s.novaMaquina.nome;
+    const nome = s.novaMaquina.nome; const setor = s.novaMaquina.setor;
     const erro = s.maquinaModalErro;
     return `
     <div class="modal-overlay" data-close="maquinaModalAberto">
@@ -524,7 +522,7 @@ fecharFormEquipamento() { this.set({ eqFormAberto:null, eqFormDados:null, eqForm
     <div style="padding:22px 22px 0">
     <div style="font-weight:700;font-size:15px;margin-bottom:16px">${editando?'✏️ Editar Máquina':'+ Nova Máquina'}</div>
     <label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Nome da Máquina *</label>
-    <input value="${esc(nome)}" data-bind="novaMaquina.nome" placeholder="Ex: Rotoflex 04" style="padding:8px 10px;border-radius:7px;border:1.5px solid ${erro?'#dc2626':'var(--borda)'};font-size:12px;width:100%;box-sizing:border-box;margin-bottom:6px">
+    <input value="${esc(nome)}" data-bind="novaMaquina.nome" placeholder="Ex: Rotoflex 04" style="padding:8px 10px;border-radius:7px;border:1.5px solid ${erro?'#dc2626':'var(--borda)'};font-size:12px;width:100%;box-sizing:border-box;margin-bottom:6px"><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Setor *</label><select data-bind="novaMaquina.setor" style="padding:8px 10px;border-radius:7px;border:1.5px solid ${erro?'#dc2626':'var(--borda)'};font-size:12px;width:100%;box-sizing:border-box;margin-bottom:6px"><option value="" ${!setor?'selected':''}>Selecione...</option>${s.setores.map(st=>`<option ${setor===st?'selected':''}>${esc(st)}</option>`).join("")}</select>
     ${erro ? `<div style="font-size:10px;color:#dc2626;margin-bottom:10px">⚠ ${esc(erro)}</div>` : '<div style="margin-bottom:10px"></div>'}
     </div>
     <div class="modal-rodape">
@@ -536,25 +534,11 @@ fecharFormEquipamento() { this.set({ eqFormAberto:null, eqFormDados:null, eqForm
     `;
   },
 
-  abrirModalMaquina() { this.set({ maquinaModalAberto:true, maquinaEditando:null, maquinaModalErro:"", novaMaquina:{nome:""} }); },
-  abrirEditarMaquina(nome) { this.set({ maquinaModalAberto:true, maquinaEditando:nome, maquinaModalErro:"", novaMaquina:{nome} }); },
+  abrirModalMaquina() { if (this.state.setores.length === 0) { this.showToast("Cadastre um setor antes de cadastrar uma máquina."); return; } this.set({ maquinaModalAberto:true, maquinaEditando:null, maquinaModalErro:"", novaMaquina:{nome:"", setor:""} }); },
+  abrirEditarMaquina(nome) { const m = this.state.maquinas.find(x=>x.nome===nome); this.set({ maquinaModalAberto:true, maquinaEditando:nome, maquinaModalErro:"", novaMaquina:{nome, setor:(m&&m.setor)||""} }); },
   fecharModalMaquina() { this.set({ maquinaModalAberto:false, maquinaEditando:null, maquinaModalErro:"" }); },
 
-  salvarMaquina() {
-    const s = this.state;
-    const nomeNovo = s.novaMaquina.nome.trim();
-    if (!nomeNovo) { this.set({maquinaModalErro:"Informe o nome da máquina."}); return; }
-    const nomeOriginal = s.maquinaEditando;
-    const duplicado = s.maquinas.some(m => m.toLowerCase()===nomeNovo.toLowerCase() && m!==nomeOriginal);
-    if (duplicado) { this.set({maquinaModalErro:"Já existe uma máquina com este nome."}); return; }
-    if (nomeOriginal) {
-      s.maquinas = s.maquinas.map(m=>m===nomeOriginal?nomeNovo:m);
-      s.equipamentos = s.equipamentos.map(e=>e.maquina===nomeOriginal?{...e,maquina:nomeNovo}:e);
-    } else {
-      s.maquinas.push(nomeNovo);
-    }
-    this.set({ maquinaModalAberto:false, maquinaEditando:null, maquinaModalErro:"" });
-  },
+  salvarMaquina() { const s = this.state; const nomeNovo = s.novaMaquina.nome.trim(); const setorNovo = s.novaMaquina.setor || ""; if (!nomeNovo) { this.set({maquinaModalErro:"Informe o nome da máquina."}); return; } if (!setorNovo) { this.set({maquinaModalErro:"Selecione o setor da máquina."}); return; } const nomeOriginal = s.maquinaEditando; const duplicado = s.maquinas.some(m => m.nome.toLowerCase()===nomeNovo.toLowerCase() && m.nome!==nomeOriginal); if (duplicado) { this.set({maquinaModalErro:"Já existe uma máquina com este nome."}); return; } if (nomeOriginal) { s.maquinas = s.maquinas.map(m=>m.nome===nomeOriginal?{nome:nomeNovo, setor:setorNovo}:m); s.equipamentos = s.equipamentos.map(e=>e.maquina===nomeOriginal?{...e,maquina:nomeNovo}:e); } else { s.maquinas.push({nome:nomeNovo, setor:setorNovo}); } this.set({ maquinaModalAberto:false, maquinaEditando:null, maquinaModalErro:"" }); },
 
   confirmarRemoverMaquina(nome) { this.set({ removerCadastro:{tipo:'maquina', nome} }); },
 
@@ -565,7 +549,7 @@ fecharFormEquipamento() { this.set({ eqFormAberto:null, eqFormDados:null, eqForm
     const r = s.removerCadastro;
     if (!r) return;
     if (r.tipo==='setor') s.setores = s.setores.filter(x=>x!==r.nome);
-    else s.maquinas = s.maquinas.filter(x=>x!==r.nome);
+    else s.maquinas = s.maquinas.filter(x=>x.nome!==r.nome);
     this.set({ removerCadastro:null });
   },
 
@@ -615,7 +599,7 @@ return `
 <input value="${esc(d.cod||'')}" data-bind="eqFormDados.cod" placeholder="Ex: L2.010.011F" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box"></div>
 <div><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:2px;font-weight:600">Máquina</label>
 <select data-bind="eqFormDados.maquina" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box">
-${s.maquinas.map(m=>`<option ${d.maquina===m?'selected':''}>${m}</option>`).join("")}
+${s.maquinas.map(m=>`<option ${d.maquina===m.nome?'selected':''}>${m.nome}</option>`).join("")}
 </select></div>
 <div><label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:2px;font-weight:600">Setor</label>
 <select data-bind="eqFormDados.setor" data-rerender="1" style="padding:7px 10px;border-radius:7px;border:1px solid var(--borda);font-size:12px;width:100%;box-sizing:border-box">
@@ -1323,7 +1307,7 @@ ${e.setor?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(e.
 <label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Máquina *</label>
 <select data-bind="scForm.maquina" data-rerender="1" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('maquina')};font-size:13px;width:100%;box-sizing:border-box">
 <option value="" ${!f.maquina?'selected':''}>Selecione...</option>
-${s.maquinas.map(m=>`<option ${f.maquina===m?'selected':''}>${m}</option>`).join("")}
+${s.maquinas.map(m=>`<option ${f.maquina===m.nome?'selected':''}>${m.nome}</option>`).join("")}
 </select>
 ${e.maquina?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(e.maquina)}</div>`:""}
 </div>
