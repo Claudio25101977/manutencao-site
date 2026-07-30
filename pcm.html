@@ -59,6 +59,37 @@ a{color:inherit;text-decoration:none}
 const HOJE = new Date(); HOJE.setHours(0,0,0,0);
 function addDias(data, d) { const r = new Date(data); r.setDate(r.getDate() + d); return r; }
 function fmtDate(d) { if(!(d instanceof Date)) d = new Date(d); return d.toLocaleDateString("pt-BR"); }
+
+const LS_SC = "pcm_solicitacoesCorretivas";
+const LS_SC_CNT = "pcm_scCnt";
+function carregarUsuariosAdmin() {
+try {
+const raw = localStorage.getItem("pcmAdmin_usuarios");
+const arr = raw ? JSON.parse(raw) : [];
+return Array.isArray(arr) ? arr : [];
+} catch(e) { console.error("Erro ao ler usuarios cadastrados:", e); return []; }
+}
+function usuariosAprovadores() {
+return carregarUsuariosAdmin().filter(u => u.status === "ativo" && u.permissoes && u.permissoes.aprovacaoOS);
+}
+function usuariosColaboradores() {
+return carregarUsuariosAdmin().filter(u => u.status === "ativo");
+}
+function usuarioTemPermissaoAprovacao(usuarioLogado) {
+if (!usuarioLogado) return false;
+if (usuarioLogado.perfil === "Administrador") return true;
+const lista = carregarUsuariosAdmin();
+const u = lista.find(x => x.nome && usuarioLogado.nome && x.nome.trim().toLowerCase() === usuarioLogado.nome.trim().toLowerCase());
+return !!(u && u.permissoes && u.permissoes.aprovacaoOS);
+}
+const STATUS_SC = {
+"Em elaboração": {color:"#64748b", bg:"#f1f5f9"},
+"Enviada para Aprovação": {color:"#2563eb", bg:"#eff6ff"},
+"Em análise": {color:"#b45309", bg:"#fffbeb"},
+"Aprovada": {color:"#16a34a", bg:"#f0fdf4"},
+"Rejeitada": {color:"#dc2626", bg:"#fef2f2"},
+};
+
 function parseDataLocal(str) {
 if (!str) return null;
 const [y,m,d] = str.split("-").map(Number);
@@ -171,8 +202,9 @@ aprovFlow: null, erroAprov: "",
 relatorio: null,
 excluirEq: null,
 solicitacoesCorretivas: [],
-scForm: { setor:"", maquina:"", codigoPeca:"", dataOcorrencia:"", ocorrencia:"", impacto:"", prioridade:"" },
+scForm: { setor:"", maquina:"", codigoPeca:"", dataOcorrencia:"", ocorrencia:"", impacto:"", prioridade:"", aprovadorEmail:"" },
 scErros: {},
+scDetalhe: null,
 setores: SETORES.slice(),
   maquinas: MAQUINAS.slice(),
   setorBusca: "", setorModalAberto: false, setorEditando: null, setorModalErro: "", novoSetor: {nome:""},
@@ -182,6 +214,12 @@ setores: SETORES.slice(),
 
 set(patch) { Object.assign(this.state, patch); this.render(); },
 showToast(msg) { this.set({toastMsg: msg}); setTimeout(()=>{ this.state.toastMsg=null; this.render(); }, 3000); },
+persistirSC() {
+try {
+localStorage.setItem(LS_SC, JSON.stringify(this.state.solicitacoesCorretivas));
+localStorage.setItem(LS_SC_CNT, String(this.scCnt));
+} catch(e) { console.error("Erro ao persistir solicitacoes corretivas:", e); }
+},
 
 captureFocus() {
 const el = document.activeElement;
@@ -211,6 +249,7 @@ const ABAS = [
 {id:"os",label:"📋 Ordens de Serviço"},
 {id:"estrategia",label:"🎯 Estratégias"},
 {id:"solicitacaocorretiva",label:"🛠️ Solicitação Corretiva"},
+...(usuarioTemPermissaoAprovacao(s.usuarioLogado) ? [{id:"aprovacaocorretiva",label:"✅ Aprovação Corretiva"}] : []),
   {id:"setores",label:"🏢 Cadastro de Setor"},
   {id:"maquinas",label:"🔩 Cadastro de Máquinas"},
 ];
@@ -221,6 +260,7 @@ else if (s.pcmAba === "equipamentos") corpo = this.pcmEquipamentos(equipamentosA
 else if (s.pcmAba === "os") corpo = this.pcmOS();
 else if (s.pcmAba === "estrategia") corpo = this.pcmEstrategias(equipamentosAtivos);
 else if (s.pcmAba === "solicitacaocorretiva") corpo = this.pcmSolicitacaoCorretiva();
+else if (s.pcmAba === "aprovacaocorretiva") corpo = usuarioTemPermissaoAprovacao(s.usuarioLogado) ? this.pcmAprovacaoCorretiva() : this.pcmSemPermissao();
 else if (s.pcmAba === "setores") corpo = this.pcmSetores();
   else if (s.pcmAba === "maquinas") corpo = this.pcmMaquinas();
 
@@ -253,6 +293,7 @@ ${ABAS.map(a=>`<button class="pcm-tab ${s.pcmAba===a.id?'ativo':''}" data-act="s
 <div style="padding:18px 20px;max-width:1100px;margin:0 auto">${corpo}</div>
 ${s.detalheOS ? this.modalDetalheOS() : ""}
 ${s.excluirEq ? this.modalExcluirEq() : ""}
+${s.scDetalhe ? this.modalDetalheSC() : ""}
 `;
 if (s.toastMsg) html += `<div class="toast">${esc(s.toastMsg)}</div>`;
 document.getElementById("root").innerHTML = html;
@@ -1288,6 +1329,7 @@ const f = s.scForm;
 const e = s.scErros;
 const inpErr = (campo) => e[campo] ? "border-color:#dc2626" : "";
 const codigosPeca = [...new Set(s.equipamentos.filter(eq=>eq.ativo!==false && eq.cod && eq.cod.trim()).map(eq=>eq.cod.trim()))].sort();
+const aprovadoresDisponiveis = usuariosAprovadores();
 
 return `
 <div style="background:#fff;border:2px solid #CC1B1B;border-radius:14px;padding:22px;margin-bottom:20px;box-shadow:0 4px 16px rgba(204,27,27,.07)">
@@ -1345,6 +1387,16 @@ ${e.dataOcorrencia?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠
 </div>
 </div>
 
+<div style="margin-bottom:18px">
+<label style="font-size:11px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Aprovador da Solicitação *</label>
+<select data-bind="scForm.aprovadorEmail" data-rerender="1" style="padding:9px 10px;border-radius:7px;border:1.5px solid var(--borda);${inpErr('aprovadorEmail')};font-size:13px;width:100%;box-sizing:border-box">
+<option value="" ${!f.aprovadorEmail?'selected':''}>Selecione um aprovador...</option>
+${aprovadoresDisponiveis.map(u=>`<option value="${esc(u.email)}" ${f.aprovadorEmail===u.email?'selected':''}>${esc(u.nome)} (${esc(u.email)})</option>`).join("")}
+</select>
+${aprovadoresDisponiveis.length===0 ? `<div style="font-size:10px;color:#b45309;margin-top:4px">⚠ Nenhum usuário com a permissão "Aprovação de emissão de ordem de manutenção corretiva" foi encontrado. Cadastre um aprovador no Portal Admin antes de enviar a solicitação.</div>` : ""}
+${e.aprovadorEmail?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(e.aprovadorEmail)}</div>`:""}
+</div>
+
 <div style="background:var(--fundo);border:1.5px solid ${e.prioridade?'#dc2626':'var(--borda)'};border-radius:10px;padding:14px 16px;margin-bottom:18px">
 <div style="font-weight:700;font-size:13px;margin-bottom:2px">Classificação da Prioridade da Manutenção *</div>
 <div style="font-size:10px;color:var(--texto-sec);margin-bottom:12px">Selecione uma única opção</div>
@@ -1381,13 +1433,14 @@ Nenhuma solicitação registrada ainda.
 ` : `
 <table style="width:100%;border-collapse:collapse;font-size:11px">
 <thead><tr style="background:var(--fundo);border-bottom:2px solid var(--borda)">
-${["ID","Setor","Máquina","Cód. Peça","Data Ocorrência","Ocorrência","Prioridade","Solicitante","Data/Hora (Brasília)"].map(h=>`<th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--texto-sec);white-space:nowrap;font-size:10px;text-transform:uppercase">${h}</th>`).join("")}
+${["ID","Setor","Máquina","Cód. Peça","Data Ocorrência","Ocorrência","Prioridade","Status","Solicitante","Data/Hora (Brasília)"].map(h=>`<th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--texto-sec);white-space:nowrap;font-size:10px;text-transform:uppercase">${h}</th>`).join("")}
 </tr></thead>
 <tbody>
 ${s.solicitacoesCorretivas.map((r,i)=>{
 const pr = PRIORIDADES_SC[r.prioridade];
+const st = STATUS_SC[r.status] || {color:"#64748b",bg:"#f1f5f9"};
 return `
-<tr style="border-bottom:1px solid #f4f4f5;background:${i%2===0?'#fff':'var(--fundo)'}">
+<tr data-act="abrirDetalheSC" data-p1="${esc(r.id)}" style="border-bottom:1px solid #f4f4f5;background:${i%2===0?'#fff':'var(--fundo)'};cursor:pointer">
 <td style="padding:9px 12px;font-weight:700;color:#CC1B1B;font-family:monospace;font-size:10px">${esc(r.id)}</td>
 <td style="padding:9px 12px">${esc(r.setor)}</td>
 <td style="padding:9px 12px">${esc(r.maquina)}</td>
@@ -1395,6 +1448,7 @@ return `
 <td style="padding:9px 12px;white-space:nowrap">${fmtDate(parseDataLocal(r.dataOcorrencia))}</td>
 <td style="padding:9px 12px;max-width:200px">${esc(r.ocorrencia)}</td>
 <td style="padding:9px 12px">${this.bdg(r.prioridade, pr.color, pr.bg)}</td>
+<td style="padding:9px 12px"><span style="background:${st.bg};color:${st.color};padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700">${esc(r.status)}</span></td>
 <td style="padding:9px 12px">${esc(r.solicitante)}</td>
 <td style="padding:9px 12px;white-space:nowrap;font-size:10px">${esc(r.dataHoraSolicitacao)}</td>
 </tr>
@@ -1424,27 +1478,277 @@ else if (f.ocorrencia.length > 200) erros.ocorrencia = "Máximo de 200 caractere
 if (!f.impacto.trim()) erros.impacto = "Descreva o impacto da ocorrência.";
 else if (f.impacto.length > 500) erros.impacto = "Máximo de 500 caracteres.";
 if (!f.prioridade) erros.prioridade = "Selecione a prioridade da manutenção.";
+if (!f.aprovadorEmail) erros.aprovadorEmail = "Selecione o aprovador da solicitação.";
 
 if (Object.keys(erros).length > 0) { this.set({ scErros: erros }); return; }
 
 const agora = new Date();
 const dataHoraBrasilia = agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-
+const idNovo = `SC-${String(this.scCnt).padStart(3,"0")}`;
+const aprovadorSel = usuariosAprovadores().find(u=>u.email===f.aprovadorEmail);
+const nomeAprovador = aprovadorSel ? aprovadorSel.nome : f.aprovadorEmail;
+const emailSimulado = {
+para: f.aprovadorEmail,
+assunto: `Nova Solicitação de Manutenção Corretiva — ${idNovo}`,
+corpo: `Número: ${idNovo}\nSolicitante: ${s.usuarioLogado.nome}\nMáquina: ${f.maquina}\nSetor: ${f.setor}\nData da ocorrência: ${fmtDate(parseDataLocal(f.dataOcorrencia))}\nPrioridade: ${f.prioridade}\nAcesse a aba "✅ Aprovação Corretiva" no Sistema PCM para analisar esta solicitação.`,
+dataHora: dataHoraBrasilia,
+};
 const registro = {
-id: `SC-${String(this.scCnt).padStart(3,"0")}`,
+id: idNovo,
 setor: f.setor, maquina: f.maquina, codigoPeca: f.codigoPeca.trim(),
 dataOcorrencia: f.dataOcorrencia, ocorrencia: f.ocorrencia.trim(), impacto: f.impacto.trim(),
-prioridade: f.prioridade, dataHoraSolicitacao: dataHoraBrasilia,
-solicitante: s.usuarioLogado.nome, status: "Pendente",
+prioridade: f.prioridade, prioridadeOriginal: f.prioridade,
+dataHoraSolicitacao: dataHoraBrasilia,
+solicitante: s.usuarioLogado.nome, status: "Enviada para Aprovação",
+aprovadorEmail: f.aprovadorEmail, aprovadorNome: nomeAprovador,
+responsavelExecucaoEmail: "", responsavelExecucaoNome: "", dataLimite: "",
+aprovadoPor: "", aprovadoEm: "", rejeitadoPor: "", rejeitadoEm: "", motivoRejeicao: "",
+emailSimulado,
+historico: [
+{ acao:"Solicitação criada", usuario:s.usuarioLogado.nome, dataHora:dataHoraBrasilia, detalhes:`Prioridade inicial: ${f.prioridade}` },
+{ acao:"Enviada para aprovação", usuario:s.usuarioLogado.nome, dataHora:dataHoraBrasilia, detalhes:`Aprovador selecionado: ${nomeAprovador}` },
+],
 };
 this.scCnt++;
 s.solicitacoesCorretivas = [registro, ...s.solicitacoesCorretivas];
+this.persistirSC();
+console.log("📧 [E-MAIL SIMULADO] Notificação de aprovação:", emailSimulado);
 
 this.set({
-scForm: { setor:"", maquina:"", codigoPeca:"", dataOcorrencia:"", ocorrencia:"", impacto:"", prioridade:"" },
+scForm: { setor:"", maquina:"", codigoPeca:"", dataOcorrencia:"", ocorrencia:"", impacto:"", prioridade:"", aprovadorEmail:"" },
 scErros: {}
 });
-this.showToast("✅ Solicitação de manutenção corretiva registrada com sucesso!");
+this.showToast(`✅ Solicitação enviada para aprovação de ${nomeAprovador}!`);
+},
+
+pcmSemPermissao() {
+return `<div style="text-align:center;color:var(--texto-sec);padding:60px 20px;background:#fff;border-radius:12px;border:1px solid var(--borda)"><div style="font-size:32px;margin-bottom:10px">⛔</div>Você não tem permissão para acessar esta área.</div>`;
+},
+pcmAprovacaoCorretiva() {
+const s = this.state;
+const pendentes = s.solicitacoesCorretivas.filter(r=>r.status==="Enviada para Aprovação" || r.status==="Em análise");
+return `
+<div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid var(--borda);overflow-x:auto">
+<div style="padding:16px 18px;border-bottom:1px solid var(--borda);font-weight:700;font-size:13px">
+✅ Aprovação de Ordens de Manutenção Corretivas — ${pendentes.length} pendente(s)
+</div>
+${pendentes.length===0 ? `
+<div style="padding:40px;text-align:center;color:var(--texto-sec)">
+<div style="font-size:28px;margin-bottom:8px">📭</div>
+Nenhuma solicitação pendente de aprovação no momento.
+</div>
+` : `
+<table style="width:100%;border-collapse:collapse;font-size:11px">
+<thead><tr style="background:var(--fundo);border-bottom:2px solid var(--borda)">
+${["ID","Setor","Máquina","Ocorrência","Prioridade","Aprovador Designado","Status","Data Solicitação",""].map(h=>`<th style="padding:10px 12px;text-align:left;font-weight:700;color:var(--texto-sec);white-space:nowrap;font-size:10px;text-transform:uppercase">${h}</th>`).join("")}
+</tr></thead>
+<tbody>
+${pendentes.map((r,i)=>{
+const pr = PRIORIDADES_SC[r.prioridade] || {color:"#64748b",bg:"#f1f5f9"};
+const st = STATUS_SC[r.status] || {color:"#64748b",bg:"#f1f5f9"};
+return `
+<tr style="border-bottom:1px solid #f4f4f5;background:${i%2===0?'#fff':'var(--fundo)'}">
+<td style="padding:9px 12px;font-weight:700;color:#CC1B1B;font-family:monospace;font-size:10px">${esc(r.id)}</td>
+<td style="padding:9px 12px">${esc(r.setor)}</td>
+<td style="padding:9px 12px">${esc(r.maquina)}</td>
+<td style="padding:9px 12px;max-width:200px">${esc(r.ocorrencia)}</td>
+<td style="padding:9px 12px">${this.bdg(r.prioridade, pr.color, pr.bg)}</td>
+<td style="padding:9px 12px">${esc(r.aprovadorNome)}</td>
+<td style="padding:9px 12px"><span style="background:${st.bg};color:${st.color};padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700">${esc(r.status)}</span></td>
+<td style="padding:9px 12px;white-space:nowrap;font-size:10px">${esc(r.dataHoraSolicitacao)}</td>
+<td style="padding:9px 12px"><button data-act="abrirDetalheSC" data-p1="${esc(r.id)}" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:11px">🔎 Analisar</button></td>
+</tr>
+`;}).join("")}
+</tbody>
+</table>
+`}
+</div>
+`;
+},
+
+abrirDetalheSC(id) {
+const s = this.state;
+const r = s.solicitacoesCorretivas.find(x=>x.id===id);
+if (!r) return;
+const podeAnalisar = usuarioTemPermissaoAprovacao(s.usuarioLogado) && (r.status==="Enviada para Aprovação" || r.status==="Em análise");
+this.set({ scDetalhe: {
+id, modo: podeAnalisar ? "analisar" : "ver",
+form: { responsavelExecucaoNome: r.responsavelExecucaoNome||"", dataLimite: r.dataLimite||"", prioridade: r.prioridade },
+erros: {}, motivoRejeicao: "", confirmandoRejeicao: false,
+} });
+if (podeAnalisar && r.status==="Enviada para Aprovação") this.marcarEmAnalise(id);
+},
+
+fecharDetalheSC() { this.set({ scDetalhe:null }); },
+
+marcarEmAnalise(id) {
+const s = this.state;
+const agora = new Date();
+const dataHora = agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+s.solicitacoesCorretivas = s.solicitacoesCorretivas.map(r=>{
+if (r.id!==id || r.status!=="Enviada para Aprovação") return r;
+return { ...r, status:"Em análise", historico:[...r.historico, { acao:"Aberta pelo aprovador", usuario:s.usuarioLogado.nome, dataHora, detalhes:"" }] };
+});
+this.persistirSC();
+},
+
+abrirRejeitarSC() { this.state.scDetalhe.confirmandoRejeicao = true; this.state.scDetalhe.motivoRejeicao = ""; this.render(); },
+cancelarRejeitarSC() { this.state.scDetalhe.confirmandoRejeicao = false; this.render(); },
+aprovarSC() {
+const s = this.state;
+const d = s.scDetalhe;
+const r = s.solicitacoesCorretivas.find(x=>x.id===d.id);
+if (!r) return;
+const erros = {};
+const nomeDigitado = (d.form.responsavelExecucaoNome||"").trim();
+const colaborador = usuariosColaboradores().find(u=>u.nome.trim().toLowerCase()===nomeDigitado.toLowerCase());
+if (!nomeDigitado) erros.responsavel = "Selecione o responsável pela execução.";
+else if (!colaborador) erros.responsavel = "Responsável não encontrado. Selecione um nome válido da lista de colaboradores.";
+if (!d.form.dataLimite) erros.dataLimite = "Informe a data limite para execução.";
+else {
+const dl = parseDataLocal(d.form.dataLimite);
+if (isNaN(dl.getTime())) erros.dataLimite = "Data limite inválida.";
+else if (dl < HOJE) erros.dataLimite = "A data limite não pode ser anterior a hoje.";
+}
+if (!d.form.prioridade) erros.prioridade = "Selecione a prioridade.";
+if (Object.keys(erros).length > 0) { d.erros = erros; this.render(); return; }
+
+const agora = new Date();
+const dataHora = agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+const historicoNovo = [...r.historico];
+if (d.form.prioridade !== r.prioridadeOriginal) {
+historicoNovo.push({ acao:"Prioridade alterada pelo aprovador", usuario:s.usuarioLogado.nome, dataHora, detalhes:`De "${r.prioridade}" para "${d.form.prioridade}"` });
+}
+historicoNovo.push({ acao:"Responsável pela execução definido", usuario:s.usuarioLogado.nome, dataHora, detalhes: colaborador.nome });
+historicoNovo.push({ acao:"Data limite definida", usuario:s.usuarioLogado.nome, dataHora, detalhes: fmtDate(parseDataLocal(d.form.dataLimite)) });
+historicoNovo.push({ acao:"Solicitação aprovada", usuario:s.usuarioLogado.nome, dataHora, detalhes:"" });
+
+s.solicitacoesCorretivas = s.solicitacoesCorretivas.map(x=> x.id!==r.id ? x : {
+...x, status:"Aprovada", prioridade:d.form.prioridade,
+responsavelExecucaoEmail: colaborador.email, responsavelExecucaoNome: colaborador.nome,
+dataLimite: d.form.dataLimite,
+aprovadoPor: s.usuarioLogado.nome, aprovadoEm: dataHora,
+historico: historicoNovo,
+});
+this.persistirSC();
+this.set({ scDetalhe:null });
+this.showToast("✅ Solicitação aprovada com sucesso!");
+},
+
+confirmarRejeitarSC() {
+const s = this.state;
+const d = s.scDetalhe;
+const r = s.solicitacoesCorretivas.find(x=>x.id===d.id);
+if (!r) return;
+const motivo = (d.motivoRejeicao||"").trim();
+if (!motivo) { d.erros = { motivoRejeicao: "Informe o motivo da rejeição." }; this.render(); return; }
+const agora = new Date();
+const dataHora = agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+const historicoNovo = [...r.historico, { acao:"Solicitação rejeitada", usuario:s.usuarioLogado.nome, dataHora, detalhes: motivo }];
+s.solicitacoesCorretivas = s.solicitacoesCorretivas.map(x=> x.id!==r.id ? x : {
+...x, status:"Rejeitada", rejeitadoPor:s.usuarioLogado.nome, rejeitadoEm:dataHora, motivoRejeicao:motivo, historico:historicoNovo,
+});
+this.persistirSC();
+this.set({ scDetalhe:null });
+this.showToast("❌ Solicitação rejeitada.");
+},
+modalDetalheSC() {
+const s = this.state;
+const d = s.scDetalhe;
+const r = s.solicitacoesCorretivas.find(x=>x.id===d.id);
+if (!r) return "";
+const st = STATUS_SC[r.status] || {color:"#64748b",bg:"#f1f5f9"};
+const colaboradores = usuariosColaboradores();
+const podeAnalisar = d.modo === "analisar";
+
+return `
+<div class="modal-overlay" data-close="scDetalhe">
+<div class="modal" style="max-width:640px">
+<div style="padding:22px 22px 0">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">
+<div style="font-weight:700;font-size:15px">${esc(r.id)} — Solicitação de Manutenção Corretiva</div>
+<span style="background:${st.bg};color:${st.color};padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap">${esc(r.status)}</span>
+</div>
+<div style="font-size:11px;color:var(--texto-sec);margin-bottom:14px">Solicitante: ${esc(r.solicitante)} · ${esc(r.dataHoraSolicitacao)}</div>
+
+<div style="background:var(--fundo);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Setor:</span> <span style="font-size:11.5px">${esc(r.setor)}</span></div>
+<div><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Máquina:</span> <span style="font-size:11.5px">${esc(r.maquina)}</span></div>
+<div><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Código da Peça:</span> <span style="font-size:11.5px">${esc(r.codigoPeca)}</span></div>
+<div><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Data da Ocorrência:</span> <span style="font-size:11.5px">${fmtDate(parseDataLocal(r.dataOcorrencia))}</span></div>
+<div style="grid-column:1/-1"><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Ocorrência:</span> <span style="font-size:11.5px">${esc(r.ocorrencia)}</span></div>
+<div style="grid-column:1/-1"><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Impacto:</span> <span style="font-size:11.5px">${esc(r.impacto)}</span></div>
+<div><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Aprovador Designado:</span> <span style="font-size:11.5px">${esc(r.aprovadorNome)}</span></div>
+${r.responsavelExecucaoNome ? `<div><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Responsável Execução:</span> <span style="font-size:11.5px">${esc(r.responsavelExecucaoNome)}</span></div>` : ""}
+${r.dataLimite ? `<div><span style="font-size:10px;color:var(--texto-sec);font-weight:600">Data Limite:</span> <span style="font-size:11.5px">${fmtDate(parseDataLocal(r.dataLimite))}</span></div>` : ""}
+${r.motivoRejeicao ? `<div style="grid-column:1/-1"><span style="font-size:10px;color:#dc2626;font-weight:600">Motivo da Rejeição:</span> <span style="font-size:11.5px">${esc(r.motivoRejeicao)}</span></div>` : ""}
+</div>
+${podeAnalisar ? `
+<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px">
+<div style="font-weight:700;font-size:12.5px;color:#1e3a8a;margin-bottom:10px">Análise da Solicitação</div>
+
+<div style="margin-bottom:12px">
+<label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Responsável pela Execução *</label>
+<input list="dl-colaboradores-sc" value="${esc(d.form.responsavelExecucaoNome||'')}" data-bind="scDetalhe.form.responsavelExecucaoNome" placeholder="Digite para buscar um colaborador..." style="padding:8px 10px;border-radius:7px;border:1.5px solid ${d.erros.responsavel?'#dc2626':'var(--borda)'};font-size:12.5px;width:100%;box-sizing:border-box">
+<datalist id="dl-colaboradores-sc">
+${colaboradores.map(u=>`<option value="${esc(u.nome)}">`).join("")}
+</datalist>
+${colaboradores.length===0 ? `<div style="font-size:10px;color:#b45309;margin-top:4px">⚠ Nenhum colaborador ativo cadastrado no Portal Admin.</div>` : ""}
+${d.erros.responsavel?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(d.erros.responsavel)}</div>`:""}
+</div>
+
+<div style="margin-bottom:12px">
+<label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:4px;font-weight:600">Data Limite para Execução *</label>
+<input type="date" value="${esc(d.form.dataLimite||'')}" data-bind="scDetalhe.form.dataLimite" style="padding:8px 10px;border-radius:7px;border:1.5px solid ${d.erros.dataLimite?'#dc2626':'var(--borda)'};font-size:12.5px;width:100%;max-width:220px;box-sizing:border-box">
+${d.erros.dataLimite?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(d.erros.dataLimite)}</div>`:""}
+</div>
+
+<div>
+<label style="font-size:10px;color:var(--texto-sec);display:block;margin-bottom:6px;font-weight:600">Classificação da Prioridade da Manutenção</label>
+<div style="display:flex;flex-direction:column;gap:6px">
+${Object.entries(PRIORIDADES_SC).map(([key,info])=>{
+const sel = d.form.prioridade===key;
+return `
+<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:8px;border:2px solid ${sel?info.color:'var(--borda)'};background:${sel?info.bg:'#fff'};cursor:pointer">
+<input type="radio" name="scDetalhePrioridade" data-bind="scDetalhe.form.prioridade" value="${key}" ${sel?'checked':''} style="margin-top:2px;accent-color:${info.color}">
+<div><div style="font-weight:700;font-size:11.5px;color:${sel?info.color:'var(--texto)'}">${key}</div><div style="font-size:10px;color:var(--texto-sec)">${info.desc}</div></div>
+</label>`;
+}).join("")}
+</div>
+${d.erros.prioridade?`<div style="font-size:10px;color:#dc2626;margin-top:6px">⚠ ${esc(d.erros.prioridade)}</div>`:""}
+${r.prioridadeOriginal && d.form.prioridade!==r.prioridadeOriginal ? `<div style="font-size:10px;color:#b45309;margin-top:6px">ℹ Prioridade original do solicitante: ${esc(r.prioridadeOriginal)}</div>` : ""}
+</div>
+</div>
+
+${d.confirmandoRejeicao ? `
+<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:14px 16px;margin-bottom:14px">
+<label style="font-size:11px;font-weight:700;color:#991b1b;display:block;margin-bottom:6px">Motivo da Rejeição *</label>
+<textarea data-bind="scDetalhe.motivoRejeicao" rows="3" placeholder="Descreva o motivo da rejeição..." style="padding:8px 10px;border-radius:7px;border:1.5px solid ${d.erros.motivoRejeicao?'#dc2626':'var(--borda)'};font-size:12.5px;width:100%;box-sizing:border-box;font-family:inherit;resize:vertical">${esc(d.motivoRejeicao||'')}</textarea>
+${d.erros.motivoRejeicao?`<div style="font-size:10px;color:#dc2626;margin-top:4px">⚠ ${esc(d.erros.motivoRejeicao)}</div>`:""}
+<div style="display:flex;gap:8px;margin-top:10px">
+<button data-act="confirmarRejeitarSC" style="padding:8px 16px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">Confirmar Rejeição</button>
+<button data-act="cancelarRejeitarSC" style="padding:8px 14px;background:#fff;border:1.5px solid var(--borda);border-radius:8px;cursor:pointer;font-size:12px">Cancelar</button>
+</div>
+</div>
+` : ""}
+` : ""}
+<div style="margin-bottom:6px">
+<div style="font-weight:700;font-size:12px;margin-bottom:8px">📜 Histórico</div>
+<div style="max-height:160px;overflow-y:auto;background:var(--fundo);border-radius:8px;padding:8px 12px">
+${(r.historico||[]).map(h=>`<div style="padding:5px 0;border-bottom:1px solid var(--borda);font-size:11px"><b>${esc(h.acao)}</b> — ${esc(h.usuario)} · ${esc(h.dataHora)}${h.detalhes?`<br><span style="color:var(--texto-sec)">${esc(h.detalhes)}</span>`:""}</div>`).join("")}
+</div>
+</div>
+</div>
+<div class="modal-rodape">
+<button data-act="fecharDetalheSC" style="padding:10px 18px;background:#fff;border:1.5px solid var(--borda);border-radius:8px;cursor:pointer;font-size:12px">Fechar</button>
+${podeAnalisar && !d.confirmandoRejeicao ? `
+<button data-act="abrirRejeitarSC" style="padding:10px 18px;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">❌ Rejeitar</button>
+<button data-act="aprovarSC" style="padding:10px 20px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px">✅ Aprovar</button>
+` : ""}
+</div>
+</div>
+</div>
+`;
 },
 };
 
@@ -1491,6 +1795,15 @@ if (el.hasAttribute("data-rerender")) App.render();
 }
 }
 });
+
+(function(){
+try {
+const raw = localStorage.getItem(LS_SC);
+if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) App.state.solicitacoesCorretivas = arr; }
+const cnt = localStorage.getItem(LS_SC_CNT);
+if (cnt) App.scCnt = Number(cnt) || App.scCnt;
+} catch(e) { console.error("Erro ao carregar solicitacoes corretivas:", e); }
+})();
 
 App.render();
 </script>
