@@ -1590,6 +1590,7 @@ if (r.id!==id || r.status!=="Enviada para Aprovação") return r;
 return { ...r, status:"Em análise", historico:[...r.historico, { acao:"Aberta pelo aprovador", usuario:s.usuarioLogado.nome, dataHora, detalhes:"" }] };
 });
 this.persistirSC();
+this.render();
 },
 
 abrirRejeitarSC() { this.state.scDetalhe.confirmandoRejeicao = true; this.state.scDetalhe.motivoRejeicao = ""; this.render(); },
