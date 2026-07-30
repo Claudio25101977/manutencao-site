@@ -163,7 +163,7 @@
           this.set({erros:{}, carregando:true});
           setTimeout(() => {
             const perfil = s.tipoAcesso === "admin" ? "Administrador" : "Operador";
-            const nome = s.tipoAcesso === "admin" ? "Ana Silva" : (s.usuario.trim() || "Mauro Ledur");
+            const nome = s.tipoAcesso === "admin" ? "Cláudio" : (s.usuario.trim() || "Mauro Ledur");
             const params = "?nome=" + encodeURIComponent(nome) + "&perfil=" + encodeURIComponent(perfil);
             window.location.href = (perfil === "Administrador" ? "admin.html" : "pcm.html") + params;
           }, 700);
